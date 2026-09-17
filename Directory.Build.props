@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <Authors>Rttstat</Authors>
+    <Company>Rttstat</Company>
+    <Product>Rttstat</Product>
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+</Project>

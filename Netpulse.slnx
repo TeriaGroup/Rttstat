@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Netpulse.App/Netpulse.App.csproj" />
+    <Project Path="src/Netpulse.Core/Netpulse.Core.csproj" />
+    <Project Path="src/Netpulse.Infrastructure/Netpulse.Infrastructure.csproj" />
+    <Project Path="src/Netpulse.Tests/Netpulse.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,23 @@
+<Window x:Class="Netpulse.App.Tray.HudWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctrl="clr-namespace:Netpulse.App.Controls"
+        Title="Rttstat HUD"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Visibility="Collapsed"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Width="380"
+        Height="52"
+        MouseLeftButtonUp="OnClick">
+  <Border Background="#E61B1D21" CornerRadius="8" BorderBrush="#3A3E46" BorderThickness="1" Padding="10,6">
+    <DockPanel>
+      <ctrl:Sparkline x:Name="Strip" DockPanel.Dock="Bottom" Height="16" Margin="0,4,0,0" Stroke="#3DDC97" ShowGrid="False"/>
+      <TextBlock x:Name="Line" FontFamily="Segoe UI Semibold" FontSize="13" Foreground="#E8EAED" VerticalAlignment="Center"/>
+    </DockPanel>
+  </Border>
+</Window>
