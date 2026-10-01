@@ -138,7 +138,76 @@ public sealed class SampleRepository
             cmd.Parameters.AddWithValue("$pr", (object?)r.ProfileId?.ToString() ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$a", (object?)r.AdapterId ?? DBNull.Value);
             cmd.ExecuteNonQuery();
+            TryExec("""
+                UPDATE speedtests SET idle_ms=$i, down_load_ms=$dl, up_load_ms=$ul, bloat_grade=$g WHERE id=$id
+                """, c =>
+            {
+                c.Parameters.AddWithValue("$i", (object?)r.IdlePingMs ?? DBNull.Value);
+                c.Parameters.AddWithValue("$dl", (object?)r.DownLoadPingMs ?? DBNull.Value);
+                c.Parameters.AddWithValue("$ul", (object?)r.UpLoadPingMs ?? DBNull.Value);
+                c.Parameters.AddWithValue("$g", (object?)r.BloatGrade ?? DBNull.Value);
+                c.Parameters.AddWithValue("$id", r.Id.ToString());
+            });
         }
+    }
+
+    public void InsertRoutes(IReadOnlyList<RouteSample> batch)
+    {
+        if (batch.Count == 0) return;
+        lock (_db.Gate)
+        {
+            using var tx = _db.Connection.BeginTransaction();
+            foreach (var s in batch)
+            {
+                using var cmd = _db.Connection.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = """
+                    INSERT INTO route_samples(ts, profile_id, target_id, hop, ip, rtt_ms, ok, status)
+                    VALUES ($ts,$p,$t,$h,$ip,$rtt,$ok,$st)
+                    """;
+                cmd.Parameters.AddWithValue("$ts", s.Ts);
+                cmd.Parameters.AddWithValue("$p", s.ProfileId.ToString());
+                cmd.Parameters.AddWithValue("$t", s.TargetId.ToString());
+                cmd.Parameters.AddWithValue("$h", s.Hop);
+                cmd.Parameters.AddWithValue("$ip", (object?)s.Ip ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$rtt", s.RttMs is null ? DBNull.Value : s.RttMs);
+                cmd.Parameters.AddWithValue("$ok", s.Ok ? 1 : 0);
+                cmd.Parameters.AddWithValue("$st", s.Status);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+    }
+
+    public string LastRouteTable(long fromTs)
+    {
+        lock (_db.Gate)
+        {
+            using var cmd = _db.Connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT hop, ip, AVG(rtt_ms), SUM(CASE WHEN ok=0 THEN 1 ELSE 0 END)*100.0/COUNT(*)
+                FROM route_samples WHERE ts >= $f
+                GROUP BY hop, ip ORDER BY hop
+                """;
+            cmd.Parameters.AddWithValue("$f", fromTs);
+            var sb = new System.Text.StringBuilder();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                sb.AppendLine($"{r.GetInt32(0)}\t{r.GetString(1)}\t{(r.IsDBNull(2) ? 0 : r.GetDouble(2)):0.0}\t{(r.IsDBNull(3) ? 0 : r.GetDouble(3)):0.0}%");
+            return sb.ToString();
+        }
+    }
+
+    private void TryExec(string sql, Action<Microsoft.Data.Sqlite.SqliteCommand> bind)
+    {
+        try
+        {
+            using var c = _db.Connection.CreateCommand();
+            c.CommandText = sql;
+            bind(c);
+            c.ExecuteNonQuery();
+        }
+        catch { /* old schema */ }
     }
 
     public IReadOnlyList<AppEvent> QueryEvents(long fromTs, long toTs, string? search, string? category, int limit = 2000)
@@ -313,7 +382,7 @@ public sealed class SampleRepository
         lock (_db.Gate)
         {
             using var cmd = _db.Connection.CreateCommand();
-            cmd.CommandText = $"SELECT {table.Item2}, SUM(avg_rtt * ok_count) / NULLIF(SUM(ok_count),0), SUM(fail_count)*100.0/NULLIF(SUM(ok_count+fail_count),0) FROM {table.Item1} WHERE {table.Item2} >= $f AND {table.Item2} <= $t GROUP BY {table.Item2} ORDER BY {table.Item2}";
+            cmd.CommandText = $"SELECT {table.Item2}, SUM(avg_rtt * ok_count) / NULLIF(SUM(ok_count),0), MIN(min_rtt), MAX(max_rtt), SUM(fail_count)*100.0/NULLIF(SUM(ok_count+fail_count),0) FROM {table.Item1} WHERE {table.Item2} >= $f AND {table.Item2} <= $t GROUP BY {table.Item2} ORDER BY {table.Item2}";
             cmd.Parameters.AddWithValue("$f", fromTs);
             cmd.Parameters.AddWithValue("$t", toTs);
             var list = new List<ChartPoint>();
@@ -323,7 +392,97 @@ public sealed class SampleRepository
                 list.Add(new ChartPoint(
                     r.GetInt64(0),
                     r.IsDBNull(1) ? 0 : r.GetDouble(1),
+                    r.IsDBNull(2) ? 0 : r.GetDouble(2),
+                    r.IsDBNull(3) ? 0 : r.GetDouble(3),
+                    r.IsDBNull(4) ? 0 : r.GetDouble(4)));
+            }
+            return list;
+        }
+    }
+
+    public IReadOnlyList<TargetLossPoint> QueryLossByTarget(long fromTs, long toTs, long bucketMs, string profileId)
+    {
+        var size = bucketMs < 60_000 ? 60_000 : bucketMs;
+        lock (_db.Gate)
+        {
+            using var cmd = _db.Connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT target_id,
+                       (ts_minute / $size) * $size AS b,
+                       SUM(fail_count) * 100.0 / NULLIF(SUM(ok_count + fail_count), 0)
+                FROM ping_minute
+                WHERE ts_minute >= $f AND ts_minute <= $t AND profile_id = $p
+                GROUP BY target_id, b
+                ORDER BY b
+                """;
+            cmd.Parameters.AddWithValue("$size", size);
+            cmd.Parameters.AddWithValue("$f", fromTs);
+            cmd.Parameters.AddWithValue("$t", toTs);
+            cmd.Parameters.AddWithValue("$p", profileId);
+            var list = new List<TargetLossPoint>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                if (r.IsDBNull(2)) continue;
+                list.Add(new TargetLossPoint(r.GetString(0), r.GetInt64(1), r.GetDouble(2)));
+            }
+            return list;
+        }
+    }
+
+    public IReadOnlyList<NicPoint> QueryNicSeries(long fromTs, long toTs, string bucket)
+    {
+        var size = bucket switch { "hour" => 3_600_000L, "day" => 86_400_000L, _ => 60_000L };
+        lock (_db.Gate)
+        {
+            using var cmd = _db.Connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT (ts_minute / $sz) * $sz, AVG(avg_recv_bps), AVG(avg_sent_bps)
+                FROM nic_minute
+                WHERE ts_minute >= $f AND ts_minute <= $t
+                GROUP BY 1 ORDER BY 1
+                """;
+            cmd.Parameters.AddWithValue("$sz", size);
+            cmd.Parameters.AddWithValue("$f", fromTs);
+            cmd.Parameters.AddWithValue("$t", toTs);
+            var list = new List<NicPoint>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                list.Add(new NicPoint(
+                    r.GetInt64(0),
+                    r.IsDBNull(1) ? 0 : r.GetDouble(1),
                     r.IsDBNull(2) ? 0 : r.GetDouble(2)));
+            }
+            return list;
+        }
+    }
+
+    public IReadOnlyList<OutageRow> QueryOutages(long fromTs, long toTs)
+    {
+        lock (_db.Gate)
+        {
+            using var cmd = _db.Connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT started_ts, ended_ts, cause, detail FROM outages
+                WHERE started_ts >= $f AND started_ts <= $t
+                ORDER BY started_ts DESC
+                """;
+            cmd.Parameters.AddWithValue("$f", fromTs);
+            cmd.Parameters.AddWithValue("$t", toTs);
+            var list = new List<OutageRow>();
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var start = r.GetInt64(0);
+                var end = r.IsDBNull(1) ? now : r.GetInt64(1);
+                list.Add(new OutageRow(
+                    start,
+                    r.IsDBNull(1) ? null : r.GetInt64(1),
+                    end - start,
+                    r.IsDBNull(2) ? "" : r.GetString(2),
+                    r.IsDBNull(3) ? "" : r.GetString(3)));
             }
             return list;
         }
@@ -369,6 +528,7 @@ public sealed class SampleRepository
         lock (_db.Gate)
         {
             ExecDelete("ping_samples", "ts", now - Days(r.RawSamplesDays));
+            ExecDelete("route_samples", "ts", now - Days(r.RawSamplesDays));
             ExecDelete("nic_samples", "ts", now - Days(r.RawSamplesDays));
             ExecDelete("ping_minute", "ts_minute", now - Days(r.MinuteSamplesDays));
             ExecDelete("nic_minute", "ts_minute", now - Days(r.MinuteSamplesDays));
@@ -435,4 +595,7 @@ public readonly record struct StatsRow(
     long OutageCount, long OutageTotalMs, long LongestMs,
     long BytesRecv, long BytesSent, long Speedtests, double? BestDown, double? BestUp);
 
-public readonly record struct ChartPoint(long Ts, double AvgPing, double Loss);
+public readonly record struct ChartPoint(long Ts, double AvgPing, double MinPing, double MaxPing, double Loss);
+public readonly record struct TargetLossPoint(string TargetId, long Ts, double Loss);
+public readonly record struct NicPoint(long Ts, double RecvBps, double SentBps);
+public readonly record struct OutageRow(long StartedTs, long? EndedTs, long DurationMs, string Cause, string Detail);

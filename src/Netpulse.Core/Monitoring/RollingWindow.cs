@@ -32,7 +32,7 @@ public sealed class RollingWindow
             Trim(now);
             var from = now - (long)window.TotalMilliseconds;
             int ok = 0, fail = 0;
-            double sum = 0, min = double.MaxValue, max = double.MinValue;
+            double sum = 0, sumSq = 0, min = double.MaxValue, max = double.MinValue;
             int rttN = 0;
             double? prev = null;
             double jitterSum = 0;
@@ -46,6 +46,7 @@ public sealed class RollingWindow
                     if (item.Rtt is { } r)
                     {
                         sum += r;
+                        sumSq += r * r;
                         rttN++;
                         if (r < min) min = r;
                         if (r > max) max = r;
@@ -61,6 +62,13 @@ public sealed class RollingWindow
             }
 
             var total = ok + fail;
+            double std = 0;
+            if (rttN > 1)
+            {
+                var mean = sum / rttN;
+                var variance = (sumSq - rttN * mean * mean) / (rttN - 1);
+                std = Math.Sqrt(Math.Max(0, variance));
+            }
             return new LossStats(
                 total == 0 ? 0 : fail * 100.0 / total,
                 rttN == 0 ? null : sum / rttN,
@@ -68,7 +76,8 @@ public sealed class RollingWindow
                 rttN == 0 ? null : max,
                 jitterN == 0 ? 0 : jitterSum / jitterN,
                 ok,
-                fail);
+                fail,
+                std);
         }
     }
 
@@ -107,4 +116,5 @@ public readonly record struct LossStats(
     double? MaxRtt,
     double Jitter,
     int Ok,
-    int Fail);
+    int Fail,
+    double StdDev);

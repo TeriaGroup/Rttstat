@@ -5,8 +5,8 @@
         xmlns:vm="clr-namespace:Netpulse.App.ViewModels"
         xmlns:loc="clr-namespace:Netpulse.App.Loc"
         Title="Rttstat"
-        MinWidth="900" MinHeight="600"
-        Width="1100" Height="720"
+        MinWidth="960" MinHeight="640"
+        Width="1120" Height="740"
         Background="#1B1D21"
         Foreground="#F2F3F5"
         Closing="OnClosing">
@@ -14,201 +14,363 @@
     <KeyBinding Key="F5" Command="{Binding ReloadLogCommand}"/>
   </Window.InputBindings>
   <DockPanel>
-    <Border DockPanel.Dock="Top" Background="#24262B" Padding="16,10">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-          <ComboBox Width="110" ItemsSource="{Binding Ui.Languages}" SelectedItem="{Binding SelectedLanguage}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=pause}" Command="{Binding PauseCommand}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=speedtest}" Command="{Binding RunSpeedCommand}"/>
-        </StackPanel>
-        <StackPanel>
-          <TextBlock FontSize="20" FontWeight="SemiBold" Text="Rttstat"/>
-          <TextBlock Foreground="#9AA0A6" Text="{Binding StatusText}"/>
-        </StackPanel>
-      </DockPanel>
-    </Border>
-    <Border DockPanel.Dock="Left" Width="180" Background="#15171A" Padding="8">
+    <Border DockPanel.Dock="Top" Background="#15171A" Padding="16,12,16,0">
       <StackPanel>
-        <Button Content="{loc:L Key=nav.dash}" Command="{Binding GoCommand}" CommandParameter="Dashboard" Margin="0,0,0,6"/>
-        <Button Content="{loc:L Key=nav.targets}" Command="{Binding GoCommand}" CommandParameter="Targets" Margin="0,0,0,6"/>
-        <Button Content="{loc:L Key=nav.log}" Command="{Binding GoCommand}" CommandParameter="Log" Margin="0,0,0,6"/>
-        <Button Content="{loc:L Key=nav.stats}" Command="{Binding GoCommand}" CommandParameter="Statistics" Margin="0,0,0,6"/>
-        <Button Content="{loc:L Key=nav.speed}" Command="{Binding GoCommand}" CommandParameter="Speed" Margin="0,0,0,6"/>
-        <Button Content="{loc:L Key=nav.settings}" Command="{Binding GoCommand}" CommandParameter="Settings"/>
+        <DockPanel Margin="0,0,0,12">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+            <ComboBox Width="72" ItemsSource="{Binding Ui.Languages}" SelectedItem="{Binding SelectedLanguage}" Margin="0,0,8,0"/>
+            <Button Content="{loc:L Key=pause}" Command="{Binding PauseCommand}" Margin="0,0,8,0"/>
+            <Button Content="{loc:L Key=speedtest}" Command="{Binding RunSpeedCommand}"/>
+          </StackPanel>
+          <StackPanel>
+            <WrapPanel>
+              <TextBlock FontSize="22" FontWeight="SemiBold" Text="Rttstat" VerticalAlignment="Center" Margin="0,0,12,6"/>
+              <Border Style="{StaticResource Card}" Padding="8,4" Margin="0,0,6,6" MinWidth="78">
+                <StackPanel>
+                  <TextBlock Text="{loc:L Key=ping}" FontSize="11" Foreground="#9AA0A6"/>
+                  <TextBlock Text="{Binding PingText}" FontSize="16" FontWeight="SemiBold"/>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Card}" Padding="8,4" Margin="0,0,6,6" MinWidth="78">
+                <StackPanel>
+                  <TextBlock Text="{loc:L Key=jitter}" FontSize="11" Foreground="#9AA0A6"/>
+                  <TextBlock Text="{Binding JitterText}" FontSize="16" FontWeight="SemiBold"/>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Card}" Padding="8,4" Margin="0,0,6,6" MinWidth="78">
+                <StackPanel>
+                  <TextBlock Text="{loc:L Key=loss}" FontSize="11" Foreground="#9AA0A6"/>
+                  <TextBlock Text="{Binding LossText}" FontSize="16" FontWeight="SemiBold"/>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Card}" Padding="8,4" Margin="0,0,6,6" MinWidth="64">
+                <StackPanel>
+                  <TextBlock Text="{loc:L Key=mos}" FontSize="11" Foreground="#9AA0A6"/>
+                  <TextBlock Text="{Binding MosText}" FontSize="16" FontWeight="SemiBold"/>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Card}" Padding="8,4" Margin="0,0,6,6" MinWidth="92">
+                <StackPanel>
+                  <TextBlock Text="{loc:L Key=dn}" FontSize="11" Foreground="#9AA0A6"/>
+                  <TextBlock Text="{Binding DownText}" FontSize="16" FontWeight="SemiBold"/>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Card}" Padding="8,4" Margin="0,0,6,6" MinWidth="92">
+                <StackPanel>
+                  <TextBlock Text="{loc:L Key=up}" FontSize="11" Foreground="#9AA0A6"/>
+                  <TextBlock Text="{Binding UpText}" FontSize="16" FontWeight="SemiBold"/>
+                </StackPanel>
+              </Border>
+            </WrapPanel>
+            <TextBlock Foreground="#9AA0A6" FontSize="12" Margin="0,0,0,4">
+              <Run Text="{Binding QualityText}" Foreground="#F2F3F5" FontWeight="SemiBold"/>
+              <Run Text="  "/>
+              <Run Text="{Binding OnlineText}"/>
+              <Run Text="   "/>
+              <Run Text="{loc:L Key=col.min}"/><Run Text=" "/><Run Text="{Binding MinText}"/>
+              <Run Text="   "/>
+              <Run Text="{loc:L Key=col.avg}"/><Run Text=" "/><Run Text="{Binding AvgText}"/>
+              <Run Text="   "/>
+              <Run Text="{loc:L Key=col.max}"/><Run Text=" "/><Run Text="{Binding MaxText}"/>
+              <Run Text="   "/>
+              <Run Text="{loc:L Key=loss.5m}"/><Run Text=" "/><Run Text="{Binding Loss5Text}"/>
+              <Run Text="   "/>
+              <Run Text="{loc:L Key=loss.1h}"/><Run Text=" "/><Run Text="{Binding Loss1hText}"/>
+            </TextBlock>
+          </StackPanel>
+        </DockPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+          <Button Content="{loc:L Key=nav.now}" Command="{Binding GoCommand}" CommandParameter="Dashboard" Margin="0,0,6,0"/>
+          <Button Content="{loc:L Key=nav.route}" Command="{Binding GoCommand}" CommandParameter="Route" Margin="0,0,6,0"/>
+          <Button Content="{loc:L Key=nav.loss}" Command="{Binding GoCommand}" CommandParameter="Loss" Margin="0,0,6,0"/>
+          <Button Content="{loc:L Key=nav.history}" Command="{Binding GoCommand}" CommandParameter="History" Margin="0,0,6,0"/>
+          <Button Content="{loc:L Key=nav.settings}" Command="{Binding GoCommand}" CommandParameter="Settings"/>
+        </StackPanel>
       </StackPanel>
     </Border>
+
     <Grid Margin="16">
-      <ScrollViewer Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Dash}}">
-        <StackPanel>
-          <TextBlock Text="{Binding Banner}" Foreground="#F5C542" Margin="0,0,0,8"/>
-          <UniformGrid Columns="5" Margin="0,0,0,12">
-            <Border Style="{StaticResource Card}" Margin="0,0,8,0"><StackPanel>
-              <TextBlock Text="{loc:L Key=ping}" Foreground="#B8BDC4"/><TextBlock FontSize="20" Text="{Binding PingText}"/></StackPanel></Border>
-            <Border Style="{StaticResource Card}" Margin="0,0,8,0"><StackPanel>
-              <TextBlock Text="{loc:L Key=loss}" Foreground="#B8BDC4"/><TextBlock FontSize="20" Text="{Binding LossText}"/></StackPanel></Border>
-            <Border Style="{StaticResource Card}" Margin="0,0,8,0"><StackPanel>
-              <TextBlock Text="{loc:L Key=dn}" Foreground="#B8BDC4"/><TextBlock FontSize="20" Text="{Binding DownText}"/></StackPanel></Border>
-            <Border Style="{StaticResource Card}" Margin="0,0,8,0"><StackPanel>
-              <TextBlock Text="{loc:L Key=up}" Foreground="#B8BDC4"/><TextBlock FontSize="20" Text="{Binding UpText}"/></StackPanel></Border>
-            <Border Style="{StaticResource Card}"><StackPanel>
-              <TextBlock Text="{loc:L Key=outage}" Foreground="#B8BDC4"/>
-              <TextBlock FontSize="16" Text="{Binding QualityText}"/>
-              <TextBlock FontSize="12" Foreground="#B8BDC4" Text="{Binding OnlineText}"/>
-            </StackPanel></Border>
-          </UniformGrid>
-          <TextBlock Text="{loc:L Key=ping}" Margin="0,0,0,4"/>
-          <Border Style="{StaticResource Card}" Padding="8" Margin="0,0,0,8">
-            <ctrl:Sparkline Height="130" Values="{Binding PingSpark}" Stroke="#3DDC97" UnitSuffix=" ms" WindowSeconds="120"/>
-          </Border>
-          <TextBlock Text="{loc:L Key=loss}" Margin="0,4,0,4"/>
-          <Border Style="{StaticResource Card}" Padding="8" Margin="0,0,0,8">
-            <ctrl:Sparkline Height="110" Values="{Binding LossSpark}" Stroke="#F07178" UnitSuffix=" %" FloorZero="True" WindowSeconds="120"/>
-          </Border>
-          <TextBlock Text="{loc:L Key=dn}" Margin="0,4,0,4"/>
-          <Border Style="{StaticResource Card}" Padding="8" Margin="0,0,0,8">
-            <ctrl:Sparkline Height="110" Values="{Binding DownSpark}" Stroke="#7EC8E3" UnitSuffix=" Mbps" FloorZero="True" WindowSeconds="120"/>
-          </Border>
-          <TextBlock Text="{loc:L Key=up}" Margin="0,4,0,4"/>
-          <Border Style="{StaticResource Card}" Padding="8">
-            <ctrl:Sparkline Height="110" Values="{Binding UpSpark}" Stroke="#F5C542" UnitSuffix=" Mbps" FloorZero="True" WindowSeconds="120"/>
-          </Border>
-          <TextBlock Text="{Binding AdapterLabel}" Foreground="#9AA0A6" Margin="0,8,0,8"/>
-          <DataGrid ItemsSource="{Binding Targets}" AutoGenerateColumns="False" IsReadOnly="True" Height="180">
+      <Grid Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Dash}}">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="250"/>
+        </Grid.RowDefinitions>
+        <UniformGrid Rows="2" Columns="2" Margin="0,0,0,10">
+          <DockPanel Margin="0,0,8,8">
+            <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=ping}" Margin="0,0,0,4"/>
+            <Border Style="{StaticResource Card}" Padding="6">
+              <ctrl:Sparkline Values="{Binding PingSpark}" Stroke="#3DDC97" UnitSuffix=" ms" WindowSeconds="120"/>
+            </Border>
+          </DockPanel>
+          <DockPanel Margin="0,0,0,8">
+            <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=loss}" Margin="0,0,0,4"/>
+            <Border Style="{StaticResource Card}" Padding="6">
+              <ctrl:Sparkline Values="{Binding LossSpark}" Stroke="#F07178" UnitSuffix=" %" FloorZero="True" WindowSeconds="120"/>
+            </Border>
+          </DockPanel>
+          <DockPanel Margin="0,0,8,0">
+            <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=dn}" Margin="0,0,0,4"/>
+            <Border Style="{StaticResource Card}" Padding="6">
+              <ctrl:Sparkline Values="{Binding DownSpark}" Stroke="#7EC8E3" UnitSuffix=" Mbps" FloorZero="True" WindowSeconds="120"/>
+            </Border>
+          </DockPanel>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=up}" Margin="0,0,0,4"/>
+            <Border Style="{StaticResource Card}" Padding="6">
+              <ctrl:Sparkline Values="{Binding UpSpark}" Stroke="#F5C542" UnitSuffix=" Mbps" FloorZero="True" WindowSeconds="120"/>
+            </Border>
+          </DockPanel>
+        </UniformGrid>
+        <WrapPanel Grid.Row="1" Margin="0,8,0,8">
+          <TextBox x:Name="QuickHostBox" Width="240" Text="{Binding QuickHost, UpdateSourceTrigger=PropertyChanged}" PreviewKeyDown="OnQuickHostKey" Margin="0,0,8,6" ToolTip="{loc:L Key=col.host}"/>
+          <Button Content="{loc:L Key=add.target}" Command="{Binding QuickAddCommand}" Margin="0,0,12,6"/>
+          <Button Content="1.1.1.1" Command="{Binding AddPresetCommand}" CommandParameter="1.1.1.1" Margin="0,0,6,6" Padding="8,4"/>
+          <Button Content="8.8.8.8" Command="{Binding AddPresetCommand}" CommandParameter="8.8.8.8" Margin="0,0,6,6" Padding="8,4"/>
+          <Button Content="9.9.9.9" Command="{Binding AddPresetCommand}" CommandParameter="9.9.9.9" Margin="0,0,6,6" Padding="8,4"/>
+          <Button Content="ya.ru" Command="{Binding AddPresetCommand}" CommandParameter="ya.ru" Margin="0,0,6,6" Padding="8,4"/>
+          <Button Content="google.com" Command="{Binding AddPresetCommand}" CommandParameter="google.com" Margin="0,0,6,6" Padding="8,4"/>
+        </WrapPanel>
+        <DockPanel Grid.Row="2">
+          <TextBlock DockPanel.Dock="Top" Text="{Binding AdapterLabel}" Foreground="#9AA0A6" Margin="0,0,0,4"/>
+          <DataGrid ItemsSource="{Binding Targets}" AutoGenerateColumns="False" IsReadOnly="True" RowHeight="28" EnableRowVirtualization="False">
             <DataGrid.Columns>
+              <DataGridTemplateColumn Width="36">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Button Content="×" Padding="4,0" Command="{Binding DataContext.RemoveTargetCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridTextColumn Header="{loc:L Key=col.name}" Binding="{Binding DisplayName}" Width="*"/>
-              <DataGridTextColumn Header="{loc:L Key=col.host}" Binding="{Binding Host}" Width="*"/>
-              <DataGridTextColumn Header="{loc:L Key=col.ip}" Binding="{Binding ResolvedIp}" Width="*"/>
-              <DataGridTextColumn Header="{loc:L Key=col.rtt}" Binding="{Binding LastRttMs, StringFormat=N0}" Width="80"/>
-              <DataGridTextColumn Header="{loc:L Key=col.status}" Binding="{Binding LastStatus, Converter={StaticResource PingStatus}}" Width="120"/>
-              <DataGridTextColumn Header="{loc:L Key=col.loss5}" Binding="{Binding Loss5m, StringFormat=N1}" Width="80"/>
+              <DataGridTextColumn Header="{loc:L Key=col.ip}" Binding="{Binding ResolvedIp}" Width="110"/>
+              <DataGridTextColumn Header="{loc:L Key=col.rtt}" Binding="{Binding LastRttMs, StringFormat=N0}" Width="52"/>
+              <DataGridTextColumn Header="{loc:L Key=col.avg}" Binding="{Binding AvgRtt5m, StringFormat=N0}" Width="58"/>
+              <DataGridTextColumn Header="{loc:L Key=col.min}" Binding="{Binding MinRtt5m, StringFormat=N0}" Width="52"/>
+              <DataGridTextColumn Header="{loc:L Key=col.max}" Binding="{Binding MaxRtt5m, StringFormat=N0}" Width="52"/>
+              <DataGridTextColumn Header="{loc:L Key=col.jitter}" Binding="{Binding JitterMs, StringFormat=N1}" Width="64"/>
+              <DataGridTextColumn Header="{loc:L Key=col.std}" Binding="{Binding StdDevMs, StringFormat=N1}" Width="48"/>
+              <DataGridTextColumn Header="{loc:L Key=col.sess}" Binding="{Binding SessionLoss, StringFormat=N1}" Width="64"/>
+              <DataGridTextColumn Header="{loc:L Key=col.loss5}" Binding="{Binding Loss5m, StringFormat=N1}" Width="70"/>
+              <DataGridTextColumn Header="{loc:L Key=col.sent}" Binding="{Binding Sent}" Width="52"/>
+              <DataGridTextColumn Header="{loc:L Key=col.recv}" Binding="{Binding Recv}" Width="52"/>
+              <DataGridTextColumn Header="{loc:L Key=col.mos}" Binding="{Binding Mos, StringFormat=N2}" Width="52"/>
+              <DataGridTemplateColumn Header="{loc:L Key=col.graph}" Width="120">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <ctrl:Sparkline Height="24" Width="108" Values="{Binding Spark}" Stroke="#3DDC97" ShowGrid="False" WindowSeconds="120"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
             </DataGrid.Columns>
           </DataGrid>
-        </StackPanel>
-      </ScrollViewer>
+        </DockPanel>
+      </Grid>
 
-      <DockPanel Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Targets}}">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-          <ComboBox Width="220" ItemsSource="{Binding Profiles}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedProfile}"/>
-          <Button Content="{loc:L Key=activate}" Command="{Binding ActivateProfileCommand}" Margin="8,0"/>
-          <Button Content="{loc:L Key=save}" Command="{Binding SaveProfileCommand}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=duplicate}" Command="{Binding DuplicateProfileCommand}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=delete}" Command="{Binding DeleteProfileCommand}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=detect.gw}" Command="{Binding DetectGatewayCommand}"/>
-        </StackPanel>
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
-          <TextBox Width="160" Text="{Binding NewTargetName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-          <TextBox Width="200" Text="{Binding NewTargetHost, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=add.target}" Command="{Binding AddTargetCommand}"/>
-        </StackPanel>
-        <DataGrid ItemsSource="{Binding SelectedProfile.Targets}" AutoGenerateColumns="False" CanUserAddRows="False">
-          <DataGrid.Columns>
-            <DataGridCheckBoxColumn Header="{loc:L Key=col.on}" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
-            <DataGridTextColumn Header="{loc:L Key=col.name}" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-            <DataGridTextColumn Header="{loc:L Key=col.host}" Binding="{Binding Host, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-            <DataGridTextColumn Header="{loc:L Key=col.role}" Binding="{Binding Role}" Width="100"/>
-          </DataGrid.Columns>
-        </DataGrid>
+      <DockPanel Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Route}}">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+          <Button DockPanel.Dock="Right" Content="{loc:L Key=route.copy}" Command="{Binding CopyRouteCommand}"/>
+          <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding RouteHost}" VerticalAlignment="Center"/>
+        </DockPanel>
+        <DataGrid ItemsSource="{Binding RouteHops}" AutoGenerateColumns="False" IsReadOnly="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="{loc:L Key=col.hop}" Binding="{Binding Hop}" Width="50"/>
+              <DataGridTextColumn Header="{loc:L Key=col.ip}" Binding="{Binding Ip}" Width="*"/>
+              <DataGridTextColumn Header="{loc:L Key=loss}" Binding="{Binding LossPercent, StringFormat=N1}" Width="70"/>
+              <DataGridTextColumn Header="{loc:L Key=col.last}" Binding="{Binding LastRttMs, StringFormat=N0}" Width="60"/>
+              <DataGridTextColumn Header="{loc:L Key=col.avg}" Binding="{Binding AvgRtt, StringFormat=N0}" Width="60"/>
+              <DataGridTextColumn Header="{loc:L Key=col.best}" Binding="{Binding MinRtt, StringFormat=N0}" Width="60"/>
+              <DataGridTextColumn Header="{loc:L Key=col.worst}" Binding="{Binding MaxRtt, StringFormat=N0}" Width="60"/>
+              <DataGridTextColumn Header="{loc:L Key=col.jitter}" Binding="{Binding Jitter, StringFormat=N0}" Width="70"/>
+              <DataGridTextColumn Header="{loc:L Key=col.sent}" Binding="{Binding Sent}" Width="60"/>
+              <DataGridTextColumn Header="{loc:L Key=col.recv}" Binding="{Binding Recv}" Width="60"/>
+            </DataGrid.Columns>
+          </DataGrid>
       </DockPanel>
 
-      <DockPanel Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Log}}">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-          <TextBox Width="240" Text="{Binding LogSearch, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-          <ComboBox Width="160" ItemsSource="{Binding CategoryOptions}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding LogCategory}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=filter}" Command="{Binding ReloadLogCommand}" Margin="0,0,8,0"/>
-          <Button Content="{loc:L Key=export.csv}" Command="{Binding ExportLogCommand}"/>
+      <DockPanel Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Loss}}">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <ComboBox Width="140" ItemsSource="{Binding BucketOptions}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding LossBucket}" Margin="0,0,8,0"/>
+            <Button Content="{loc:L Key=refresh}" Command="{Binding GoCommand}" CommandParameter="Loss"/>
+          </StackPanel>
+          <ItemsControl ItemsSource="{Binding LossTabs}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Content="{Binding Title}" Margin="0,0,6,6" Padding="10,4"
+                        Command="{Binding DataContext.SelectLossTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding Id}">
+                  <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Selected}" Value="True">
+                          <Setter Property="Background" Value="#3DDC97"/>
+                          <Setter Property="Foreground" Value="#15171A"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ItemsControl ItemsSource="{Binding LossSeries}" Margin="0,4,0,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Margin="0,0,14,4">
+                  <Border Width="10" Height="10" CornerRadius="2" Background="{Binding Stroke}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
-        <DataGrid ItemsSource="{Binding LogRows}" AutoGenerateColumns="False" IsReadOnly="True">
+        <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=loss.empty}" Foreground="#9AA0A6" Margin="0,0,0,8"
+                   Visibility="{Binding LossEmpty, Converter={x:Static vm:BoolToVis.Yes}}"/>
+        <DataGrid DockPanel.Dock="Bottom" Height="150" ItemsSource="{Binding LossSummaryRows}" AutoGenerateColumns="False" IsReadOnly="True"
+                  Visibility="{Binding LossCombined, Converter={x:Static vm:BoolToVis.Yes}}">
           <DataGrid.Columns>
-            <DataGridTextColumn Header="{loc:L Key=col.time}" Binding="{Binding Time}" Width="160"/>
-            <DataGridTextColumn Header="{loc:L Key=col.level}" Binding="{Binding Level}" Width="80"/>
-            <DataGridTextColumn Header="{loc:L Key=col.cat}" Binding="{Binding Category}" Width="100"/>
-            <DataGridTextColumn Header="{loc:L Key=col.msg}" Binding="{Binding Message}" Width="*"/>
+            <DataGridTextColumn Header="{loc:L Key=col.name}" Binding="{Binding Name}" Width="*"/>
+            <DataGridTextColumn Header="{loc:L Key=col.avg}" Binding="{Binding Avg}" Width="100"/>
+            <DataGridTextColumn Header="{loc:L Key=col.max}" Binding="{Binding Max}" Width="100"/>
+            <DataGridTextColumn Header="{loc:L Key=col.last}" Binding="{Binding Last}" Width="100"/>
           </DataGrid.Columns>
         </DataGrid>
+        <DataGrid DockPanel.Dock="Bottom" Height="150" ItemsSource="{Binding LossDetailRows}" AutoGenerateColumns="False" IsReadOnly="True"
+                  Visibility="{Binding LossCombined, Converter={x:Static vm:BoolToVis.No}}">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="{loc:L Key=col.time}" Binding="{Binding Time}" Width="*"/>
+            <DataGridTextColumn Header="{loc:L Key=loss}" Binding="{Binding Loss}" Width="*"/>
+          </DataGrid.Columns>
+        </DataGrid>
+        <Border Style="{StaticResource Card}" Padding="6">
+          <ctrl:SeriesChart Series="{Binding LossSeries}" WindowSeconds="{Binding LossWindowSeconds}" UnitSuffix=" %"/>
+        </Border>
       </DockPanel>
 
-      <DockPanel Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Stats}}">
+      <DockPanel Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.History}}">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
           <ComboBox Width="140" ItemsSource="{Binding BucketOptions}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding StatsBucket}" Margin="0,0,8,0"/>
           <Button Content="{loc:L Key=refresh}" Command="{Binding RefreshStatsCommand}" Margin="0,0,8,0"/>
           <Button Content="{loc:L Key=export}" Command="{Binding ExportStatsCommand}"/>
         </StackPanel>
-        <StackPanel>
-          <TextBlock Text="{Binding StatsSummary}" FontSize="16" LineHeight="26"/>
-          <Border Style="{StaticResource Card}" Padding="8" Margin="0,16,0,0">
-            <ctrl:Sparkline Height="140" Values="{Binding StatsSpark}" Stroke="#3DDC97"/>
-          </Border>
-        </StackPanel>
+        <ScrollViewer>
+          <UniformGrid Columns="2">
+              <DockPanel Margin="0,0,8,8">
+                <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=stats.ping.title}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <DataGrid DockPanel.Dock="Bottom" ItemsSource="{Binding StatsPingRows}" AutoGenerateColumns="False" IsReadOnly="True" Height="120">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="{loc:L Key=col.time}" Binding="{Binding Time}" Width="*"/>
+                    <DataGridTextColumn Header="{loc:L Key=col.avg}" Binding="{Binding Avg}" Width="*"/>
+                    <DataGridTextColumn Header="{loc:L Key=col.min}" Binding="{Binding Min}" Width="*"/>
+                    <DataGridTextColumn Header="{loc:L Key=col.max}" Binding="{Binding Max}" Width="*"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <Border Style="{StaticResource Card}" Padding="6" Margin="0,0,0,8">
+                  <ctrl:Sparkline Height="100" Values="{Binding StatsPingSpark}" Stroke="#3DDC97" UnitSuffix=" ms" WindowSeconds="{Binding StatsWindowSeconds}"/>
+                </Border>
+              </DockPanel>
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=stats.loss.title}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <DataGrid DockPanel.Dock="Bottom" ItemsSource="{Binding StatsLossRows}" AutoGenerateColumns="False" IsReadOnly="True" Height="120">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="{loc:L Key=col.time}" Binding="{Binding Time}" Width="*"/>
+                    <DataGridTextColumn Header="{loc:L Key=loss}" Binding="{Binding Loss}" Width="*"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <Border Style="{StaticResource Card}" Padding="6" Margin="0,0,0,8">
+                  <ctrl:Sparkline Height="100" Values="{Binding StatsLossSpark}" Stroke="#F07178" UnitSuffix=" %" FloorZero="True" WindowSeconds="{Binding StatsWindowSeconds}"/>
+                </Border>
+              </DockPanel>
+              <DockPanel Margin="0,0,8,0">
+                <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=stats.down.title}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <DataGrid DockPanel.Dock="Bottom" ItemsSource="{Binding StatsDownRows}" AutoGenerateColumns="False" IsReadOnly="True" Height="120">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="{loc:L Key=col.time}" Binding="{Binding Time}" Width="*"/>
+                    <DataGridTextColumn Header="Mbps" Binding="{Binding Mbps}" Width="*"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <Border Style="{StaticResource Card}" Padding="6" Margin="0,0,0,8">
+                  <ctrl:Sparkline Height="100" Values="{Binding StatsDownSpark}" Stroke="#7EC8E3" UnitSuffix=" Mbps" FloorZero="True" WindowSeconds="{Binding StatsWindowSeconds}"/>
+                </Border>
+              </DockPanel>
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=stats.up.title}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <DataGrid DockPanel.Dock="Bottom" ItemsSource="{Binding StatsUpRows}" AutoGenerateColumns="False" IsReadOnly="True" Height="120">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="{loc:L Key=col.time}" Binding="{Binding Time}" Width="*"/>
+                    <DataGridTextColumn Header="Mbps" Binding="{Binding Mbps}" Width="*"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <Border Style="{StaticResource Card}" Padding="6" Margin="0,0,0,8">
+                  <ctrl:Sparkline Height="100" Values="{Binding StatsUpSpark}" Stroke="#F5C542" UnitSuffix=" Mbps" FloorZero="True" WindowSeconds="{Binding StatsWindowSeconds}"/>
+                </Border>
+              </DockPanel>
+            </UniformGrid>
+        </ScrollViewer>
       </DockPanel>
 
-      <DockPanel Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Speed}}">
-        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-          <TextBlock Text="{loc:L Key=speed.title}" FontSize="16" Margin="0,0,0,8"/>
-          <TextBox Text="{Binding Settings.LibreSpeed.ServerBaseUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
-          <StackPanel Orientation="Horizontal">
-            <Button Content="{loc:L Key=run.test}" Command="{Binding RunSpeedCommand}" Margin="0,0,8,0"/>
-            <Button Content="{loc:L Key=cancel}" Command="{Binding CancelSpeedCommand}" Margin="0,0,8,0"/>
-            <TextBlock VerticalAlignment="Center" Text="{Binding SpeedText}"/>
+      <Grid Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Settings}}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.2*"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <DockPanel Margin="0,0,12,0">
+          <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=set.profiles}" FontSize="16" Margin="0,0,0,8"/>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <ComboBox Width="160" ItemsSource="{Binding Profiles}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedProfile}"/>
+            <Button Content="{loc:L Key=activate}" Command="{Binding ActivateProfileCommand}" Margin="8,0,0,0"/>
+            <Button Content="{loc:L Key=save}" Command="{Binding SaveProfileCommand}" Margin="8,0,0,0"/>
+            <Button Content="{loc:L Key=duplicate}" Command="{Binding DuplicateProfileCommand}" Margin="8,0,0,0"/>
+            <Button Content="{loc:L Key=delete}" Command="{Binding DeleteProfileCommand}" Margin="8,0,0,0"/>
           </StackPanel>
-        </StackPanel>
-        <DataGrid ItemsSource="{Binding Speedtests}" AutoGenerateColumns="False" IsReadOnly="True">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="{loc:L Key=col.when}" Binding="{Binding StartedAtUtc}" Width="180"/>
-            <DataGridTextColumn Header="{loc:L Key=col.down}" Binding="{Binding DownloadMbps, StringFormat=N2}" Width="80"/>
-            <DataGridTextColumn Header="{loc:L Key=col.up}" Binding="{Binding UploadMbps, StringFormat=N2}" Width="80"/>
-            <DataGridTextColumn Header="{loc:L Key=col.rtt}" Binding="{Binding PingMs, StringFormat=N0}" Width="70"/>
-            <DataGridTextColumn Header="{loc:L Key=col.server}" Binding="{Binding ServerUrl}" Width="*"/>
-            <DataGridTextColumn Header="{loc:L Key=col.error}" Binding="{Binding Error}" Width="160"/>
-          </DataGrid.Columns>
-        </DataGrid>
-      </DockPanel>
-
-      <ScrollViewer Visibility="{Binding Section, Converter={x:Static vm:SectionToVis.Settings}}">
-        <StackPanel>
-          <TextBlock Text="{loc:L Key=set.general}" FontSize="16" Margin="0,0,0,8"/>
-          <TextBlock Text="{loc:L Key=set.lang}" Margin="0,0,0,4"/>
-          <ComboBox Width="160" HorizontalAlignment="Left" ItemsSource="{Binding Ui.Languages}" SelectedItem="{Binding SelectedLanguage}" Margin="0,0,0,8"/>
-          <CheckBox Content="{loc:L Key=set.autostart}" IsChecked="{Binding Settings.StartWithWindows}" Margin="0,0,0,6"/>
-          <CheckBox Content="{loc:L Key=set.open}" IsChecked="{Binding Settings.OpenWindowOnStart}" Margin="0,0,0,6"/>
-          <CheckBox Content="{loc:L Key=set.mute}" IsChecked="{Binding Settings.Notifications.MuteAll}" Margin="0,0,0,6"/>
-          <CheckBox Content="{loc:L Key=set.toast.outage}" IsChecked="{Binding Settings.Notifications.OnOutageStart}" Margin="0,0,0,6"/>
-          <CheckBox Content="{loc:L Key=set.toast.th}" IsChecked="{Binding Settings.Notifications.OnPingThreshold}" Margin="0,0,0,6"/>
-          <CheckBox Content="{loc:L Key=set.toast.speed}" IsChecked="{Binding Settings.Notifications.OnSpeedtestComplete}" Margin="0,0,0,6"/>
-          <CheckBox Content="{loc:L Key=set.quiet}" IsChecked="{Binding Settings.Notifications.QuietHoursEnabled}" Margin="0,0,0,6"/>
-          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBox Width="80" Text="{Binding Settings.Notifications.QuietHoursFrom}"/>
-            <TextBlock Text="{loc:L Key=set.to}" VerticalAlignment="Center" Margin="8,0"/>
-            <TextBox Width="80" Text="{Binding Settings.Notifications.QuietHoursTo}"/>
+          <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+            <TextBox Width="120" Text="{Binding NewTargetName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+            <TextBox Width="160" Text="{Binding NewTargetHost, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+            <Button Content="{loc:L Key=add.target}" Command="{Binding AddTargetCommand}" Margin="0,0,8,0"/>
+            <Button Content="{loc:L Key=detect.gw}" Command="{Binding DetectGatewayCommand}"/>
           </StackPanel>
-          <TextBlock Text="{loc:L Key=set.adapter}" Margin="0,8,0,4"/>
-          <ComboBox ItemsSource="{Binding Adapters}" SelectedItem="{Binding SelectedAdapter}" DisplayMemberPath="Label"/>
-          <TextBlock Text="{loc:L Key=set.tray}" FontSize="16" Margin="0,16,0,8"/>
-          <CheckBox Content="{loc:L Key=set.hud}" IsChecked="{Binding Settings.Tray.HudEnabled}" Margin="0,0,0,4"/>
-          <CheckBox Content="{loc:L Key=set.strip}" IsChecked="{Binding Settings.Tray.StripEnabled}" Margin="0,0,0,4"/>
-          <CheckBox Content="{loc:L Key=set.flyout}" IsChecked="{Binding Settings.Tray.FlyoutEnabled}" Margin="0,0,0,4"/>
-          <CheckBox Content="{loc:L Key=set.hidefs}" IsChecked="{Binding Settings.Tray.HideHudInFullscreen}" Margin="0,0,0,4"/>
-          <ComboBox ItemsSource="{Binding StripMetrics}" SelectedItem="{Binding Settings.Tray.StripMetric}" Width="160" HorizontalAlignment="Left" Margin="0,4,0,8"/>
-          <TextBlock Text="{loc:L Key=set.schedule}" Margin="0,8,0,4"/>
-          <ComboBox Width="200" HorizontalAlignment="Left" ItemsSource="{Binding Schedules}" SelectedItem="{Binding Settings.LibreSpeed.Schedule}"/>
-          <CheckBox Content="{loc:L Key=set.metered}" IsChecked="{Binding Settings.LibreSpeed.AllowMetered}" Margin="0,8,0,8"/>
-          <TextBlock Text="{loc:L Key=set.ret}" Margin="0,8,0,4"/>
-          <StackPanel Orientation="Horizontal">
-            <TextBox Width="50" Text="{Binding Settings.Retention.RawSamplesDays}" Margin="0,0,6,0"/>
-            <TextBox Width="50" Text="{Binding Settings.Retention.MinuteSamplesDays}" Margin="0,0,6,0"/>
-            <TextBox Width="50" Text="{Binding Settings.Retention.HourlySamplesDays}" Margin="0,0,6,0"/>
-            <TextBox Width="50" Text="{Binding Settings.Retention.DailySamplesDays}" Margin="0,0,6,0"/>
-            <TextBox Width="50" Text="{Binding Settings.Retention.EventsDays}"/>
+          <DataGrid ItemsSource="{Binding SelectedProfile.Targets}" AutoGenerateColumns="False" CanUserAddRows="False">
+            <DataGrid.Columns>
+              <DataGridCheckBoxColumn Header="{loc:L Key=col.on}" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
+              <DataGridTextColumn Header="{loc:L Key=col.name}" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+              <DataGridTextColumn Header="{loc:L Key=col.host}" Binding="{Binding Host, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+              <DataGridTextColumn Header="{loc:L Key=col.role}" Binding="{Binding Role}" Width="90"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+        <ScrollViewer Grid.Column="1">
+          <StackPanel>
+            <TextBlock Text="{loc:L Key=set.general}" FontSize="16" Margin="0,0,0,8"/>
+            <ComboBox Width="120" HorizontalAlignment="Left" ItemsSource="{Binding Ui.Languages}" SelectedItem="{Binding SelectedLanguage}" Margin="0,0,0,8"/>
+            <TextBlock Text="{loc:L Key=set.adapter}" Margin="0,0,0,4"/>
+            <ComboBox ItemsSource="{Binding Adapters}" SelectedItem="{Binding SelectedAdapter}" DisplayMemberPath="Label" Margin="0,0,0,8"/>
+            <CheckBox Content="{loc:L Key=set.autostart}" IsChecked="{Binding StartWithWindowsTray}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.hud}" IsChecked="{Binding Settings.Tray.HudEnabled}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.mute}" IsChecked="{Binding Settings.Notifications.MuteAll}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.sound}" IsChecked="{Binding Settings.AlertSound}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.toast.outage}" IsChecked="{Binding Settings.Notifications.OnOutageStart}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.toast.th}" IsChecked="{Binding Settings.Notifications.OnPingThreshold}" Margin="0,0,0,8"/>
+            <TextBlock Text="{loc:L Key=speed.title}" Margin="0,0,0,4"/>
+            <TextBox Text="{Binding Settings.LibreSpeed.ServerBaseUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+              <Button Content="{loc:L Key=set.save}" Command="{Binding SaveSettingsCommand}" Margin="0,0,8,0"/>
+              <Button Content="{loc:L Key=set.folder}" Command="{Binding OpenDataFolderCommand}"/>
+            </StackPanel>
+            <TextBlock Margin="0,12,0,0" Foreground="#9AA0A6" TextWrapping="Wrap" Text="{loc:L Key=set.about}"/>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-            <Button Content="{loc:L Key=set.save}" Command="{Binding SaveSettingsCommand}" Margin="0,0,8,0"/>
-            <Button Content="{loc:L Key=set.folder}" Command="{Binding OpenDataFolderCommand}" Margin="0,0,8,0"/>
-            <Button Content="{loc:L Key=set.vacuum}" Command="{Binding VacuumCommand}" Margin="0,0,8,0"/>
-            <Button Content="{loc:L Key=set.reset}" Command="{Binding ResetSettingsCommand}"/>
-          </StackPanel>
-          <TextBlock Margin="0,16,0,0" Foreground="#B8BDC4" TextWrapping="Wrap"
-                     Text="{loc:L Key=set.about}"/>
-        </StackPanel>
-      </ScrollViewer>
+        </ScrollViewer>
+      </Grid>
     </Grid>
   </DockPanel>
 </Window>

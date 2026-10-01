@@ -14,7 +14,7 @@ public static class AutostartService
         {
             var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Rttstat.exe");
             key.DeleteValue("Netpulse", false);
-            key.SetValue(ValueName, "\"" + exe + "\"");
+            key.SetValue(ValueName, "\"" + exe + "\" --tray");
         }
         else
         {

@@ -51,7 +51,8 @@ public enum EventCategory
     Adapter,
     Speedtest,
     Profile,
-    Settings
+    Settings,
+    Route
 }
 
 public enum SpeedtestPhase

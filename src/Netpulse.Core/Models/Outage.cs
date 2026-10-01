@@ -38,4 +38,8 @@ public sealed class SpeedtestResult
     public string? Error { get; set; }
     public Guid? ProfileId { get; set; }
     public string? AdapterId { get; set; }
+    public double? IdlePingMs { get; set; }
+    public double? DownLoadPingMs { get; set; }
+    public double? UpLoadPingMs { get; set; }
+    public string? BloatGrade { get; set; }
 }

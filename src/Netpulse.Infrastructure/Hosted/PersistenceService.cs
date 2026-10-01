@@ -12,6 +12,7 @@ public sealed class PersistenceService : BackgroundService
     private readonly MonitorHub _hub;
     private readonly ConcurrentQueue<PingSample> _pings = new();
     private readonly ConcurrentQueue<NicSample> _nics = new();
+    private readonly ConcurrentQueue<RouteSample> _routes = new();
 
     public PersistenceService(SampleRepository repo, MonitorHub hub)
     {
@@ -22,6 +23,7 @@ public sealed class PersistenceService : BackgroundService
         _hub.OutageChanged += o => _repo.UpsertOutage(o);
         _hub.EventRaised += e => _repo.InsertEvent(e);
         _hub.SpeedtestCompleted += r => _repo.InsertSpeedtest(r);
+        _hub.RouteSampleProduced += s => _routes.Enqueue(s);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -36,8 +38,10 @@ public sealed class PersistenceService : BackgroundService
     {
         var pings = Drain(_pings);
         var nics = Drain(_nics);
+        var routes = Drain(_routes);
         if (pings.Count > 0) _repo.InsertPings(pings);
         if (nics.Count > 0) _repo.InsertNics(nics);
+        if (routes.Count > 0) _repo.InsertRoutes(routes);
     }
 
     private static List<T> Drain<T>(ConcurrentQueue<T> q)

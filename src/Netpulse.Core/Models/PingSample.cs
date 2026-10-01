@@ -15,8 +15,8 @@ public sealed class PingSample
 public sealed class TargetLiveState
 {
     public Guid TargetId { get; init; }
-    public string DisplayName { get; init; } = "";
-    public string Host { get; init; } = "";
+    public string DisplayName { get; set; } = "";
+    public string Host { get; set; } = "";
     public string ResolvedIp { get; set; } = "";
     public TargetRole Role { get; init; }
     public bool LastOk { get; set; }
@@ -32,6 +32,12 @@ public sealed class TargetLiveState
     public int ConsecutiveFails { get; set; }
     public int ConsecutiveIcmpErrors { get; set; }
     public bool UsingTcp { get; set; }
+    public int Sent { get; set; }
+    public int Recv { get; set; }
+    public double SessionLoss { get; set; }
+    public double StdDevMs { get; set; }
+    public double Mos { get; set; }
+    public IReadOnlyList<double> Spark { get; set; } = [];
 }
 
 public sealed class NicSample

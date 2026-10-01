@@ -31,6 +31,10 @@ public sealed class NotificationSink : INotificationSink
             return;
         _last[category] = DateTimeOffset.UtcNow;
         Icon?.ShowBalloonTip(title, body, BalloonIcon.Info);
+        if (_settings.Current.AlertSound)
+        {
+            try { System.Media.SystemSounds.Exclamation.Play(); } catch { /* ignore */ }
+        }
     }
 
     private void OnEvent(AppEvent e)
@@ -40,6 +44,8 @@ public sealed class NotificationSink : INotificationSink
         if (e.Category is EventCategory.Adapter && _settings.Current.Notifications.OnAdapterChange)
             Show("Rttstat", e.Message, e.Category);
         if (e.Category is EventCategory.Ping && e.Message.Contains("ICMP", StringComparison.OrdinalIgnoreCase))
+            Show("Rttstat", e.Message, e.Category);
+        if (e.Category is EventCategory.Route)
             Show("Rttstat", e.Message, e.Category);
     }
 
@@ -65,6 +71,7 @@ public sealed class NotificationSink : INotificationSink
         EventCategory.Threshold => n.OnPingThreshold || n.OnLossThreshold,
         EventCategory.Speedtest => n.OnSpeedtestComplete,
         EventCategory.Adapter => n.OnAdapterChange,
+        EventCategory.Route => n.OnPingThreshold,
         _ => true
     };
 

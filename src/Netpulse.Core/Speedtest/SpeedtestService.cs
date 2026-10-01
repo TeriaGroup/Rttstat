@@ -49,15 +49,31 @@ public sealed class SpeedtestService : BackgroundService
         try
         {
             _hub.EmitEvent(EventLevel.Info, EventCategory.Speedtest, "Speed test started");
+            var idle = _hub.Current.AggregatePingMs;
+            var downLoad = new List<double>();
+            var upLoad = new List<double>();
             var progress = new Progress<SpeedtestProgress>(p =>
             {
                 var cur = _hub.Current;
+                if (cur.AggregatePingMs is { } ms)
+                {
+                    if (p.Phase == SpeedtestPhase.Downloading) downLoad.Add(ms);
+                    if (p.Phase == SpeedtestPhase.Uploading) upLoad.Add(ms);
+                }
                 _hub.Publish(CloneWithSpeed(cur, p.Phase, p.LiveMbps, cur.LastSpeedtest));
             });
             var result = await _client.RunAsync(cfg, _profiles.Active.Id, _hub.Current.AdapterId, progress, _runCts.Token);
+            result.IdlePingMs = idle;
+            result.DownLoadPingMs = downLoad.Count == 0 ? null : downLoad.Average();
+            result.UpLoadPingMs = upLoad.Count == 0 ? null : upLoad.Average();
+            var loaded = Math.Max(result.DownLoadPingMs ?? 0, result.UpLoadPingMs ?? 0);
+            if (idle is { } i && loaded > 0)
+                result.BloatGrade = RoutePolicy.BufferbloatGrade(i, loaded);
             _hub.EmitSpeedtest(result);
+            if (result.BloatGrade is "D" or "E" or "F")
+                _hub.EmitEvent(EventLevel.Warn, EventCategory.Speedtest, "Bufferbloat " + result.BloatGrade);
             var msg = result.Error is null
-                ? $"Down {result.DownloadMbps:0.00} Mbps  Up {result.UploadMbps:0.00} Mbps  ping {result.PingMs:0} ms"
+                ? $"Down {result.DownloadMbps:0.00} Mbps  Up {result.UploadMbps:0.00} Mbps  ping {result.PingMs:0} ms  bloat {result.BloatGrade}"
                 : "Speed test error: " + result.Error;
             _hub.EmitEvent(result.Error is null ? EventLevel.Info : EventLevel.Error, EventCategory.Speedtest, msg);
             _hub.Publish(CloneWithSpeed(_hub.Current, SpeedtestPhase.Idle, null, result));

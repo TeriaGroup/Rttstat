@@ -84,6 +84,7 @@ public partial class App : System.Windows.Application
                 });
                 s.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SpeedtestService>());
                 s.AddHostedService<MonitorLoopService>();
+                s.AddHostedService<RouteEngine>();
                 s.AddHostedService<PersistenceService>();
                 s.AddHostedService<MaintenanceService>();
                 s.AddTransient<MainViewModel>();
@@ -109,7 +110,8 @@ public partial class App : System.Windows.Application
 
         settings.Current.FirstRun = false;
         settings.Save();
-        ShowMain();
+        if (!LaunchedToTray(e))
+            ShowMain();
         }
         catch (Exception ex)
         {
@@ -124,6 +126,12 @@ public partial class App : System.Windows.Application
             Shutdown();
         }
     }
+
+    private static bool LaunchedToTray(StartupEventArgs e)
+        => e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase)
+                        || a.Equals("/tray", StringComparison.OrdinalIgnoreCase)
+                        || a.Equals("--minimized", StringComparison.OrdinalIgnoreCase)
+                        || a.Equals("/minimized", StringComparison.OrdinalIgnoreCase));
 
     private void ShowMain()
     {

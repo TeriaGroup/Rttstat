@@ -117,7 +117,7 @@ public sealed class MonitorLoopService : BackgroundService
             return;
         }
 
-        var targets = profile.EnabledTargets.Take(8).ToList();
+        var targets = profile.EnabledTargets.Take(32).ToList();
         var tasks = targets.Select(t => ProbeTargetAsync(profile, t, nowMs, ct)).ToList();
         await Task.WhenAll(tasks);
 
@@ -136,6 +136,10 @@ public sealed class MonitorLoopService : BackgroundService
             st.MinRtt5m = s5.MinRtt;
             st.MaxRtt5m = s5.MaxRtt;
             st.JitterMs = s1.Jitter;
+            st.StdDevMs = s5.StdDev;
+            st.SessionLoss = st.Sent == 0 ? 0 : (st.Sent - st.Recv) * 100.0 / st.Sent;
+            st.Mos = RoutePolicy.MosEstimate(st.AvgRtt5m ?? st.LastRttMs ?? 0, st.Loss1m);
+            st.Spark = w.Spark(nowMs, TimeSpan.FromSeconds(ChartWindowSec), 40, true);
         }
 
         var liveList = targets.Select(t => _live.GetValueOrDefault(t.Id)).Where(x => x is not null).Cast<TargetLiveState>().ToList();
@@ -181,10 +185,14 @@ public sealed class MonitorLoopService : BackgroundService
         else if (result.Ok)
             state.ConsecutiveIcmpErrors = 0;
 
+        state.DisplayName = target.DisplayName;
+        state.Host = target.Host;
         state.LastOk = result.Ok;
         state.LastRttMs = result.Rtt;
         state.LastStatus = result.Status;
         state.ResolvedIp = result.Resolved;
+        state.Sent++;
+        if (result.Ok) state.Recv++;
         if (result.Ok) state.ConsecutiveFails = 0;
         else state.ConsecutiveFails++;
 

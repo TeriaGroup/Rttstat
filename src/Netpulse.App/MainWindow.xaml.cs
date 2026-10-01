@@ -31,6 +31,14 @@ public partial class MainWindow : Window
         DarkTitleBar.Apply(this);
     }
 
+    private void OnQuickHostKey(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+        if (DataContext is MainViewModel vm)
+            vm.QuickAddCommand.Execute(null);
+        e.Handled = true;
+    }
+
     private void OnClosing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         e.Cancel = true;

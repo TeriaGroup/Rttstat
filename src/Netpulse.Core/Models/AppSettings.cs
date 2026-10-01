@@ -17,6 +17,9 @@ public sealed class AppSettings
     public LibreSpeedSettings LibreSpeed { get; set; } = new();
     public RetentionSettings Retention { get; set; } = new();
     public MainWindowSettings MainWindow { get; set; } = new();
+    public int MaxTtl { get; set; } = 30;
+    public bool ReverseDns { get; set; }
+    public bool AlertSound { get; set; }
 }
 
 public sealed class UnitSettings

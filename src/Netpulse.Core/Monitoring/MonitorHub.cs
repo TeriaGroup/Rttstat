@@ -6,9 +6,12 @@ public sealed class MonitorHub
 {
     private readonly object _gate = new();
     private MonitorSnapshot _current = new();
+    private RouteSnapshot _route = new();
     private volatile bool _paused;
 
     public event Action<MonitorSnapshot>? Updated;
+    public event Action<RouteSnapshot>? RouteUpdated;
+    public event Action<RouteSample>? RouteSampleProduced;
     public event Action<PingSample>? PingSampleProduced;
     public event Action<NicSample>? NicSampleProduced;
     public event Action<Outage>? OutageChanged;
@@ -18,6 +21,11 @@ public sealed class MonitorHub
     public MonitorSnapshot Current
     {
         get { lock (_gate) return _current; }
+    }
+
+    public RouteSnapshot CurrentRoute
+    {
+        get { lock (_gate) return _route; }
     }
 
     public bool Paused
@@ -44,4 +52,10 @@ public sealed class MonitorHub
             Message = message
         });
     public void EmitSpeedtest(SpeedtestResult result) => SpeedtestCompleted?.Invoke(result);
+    public void EmitRoute(RouteSample sample) => RouteSampleProduced?.Invoke(sample);
+    public void PublishRoute(RouteSnapshot snapshot)
+    {
+        lock (_gate) _route = snapshot;
+        RouteUpdated?.Invoke(snapshot);
+    }
 }

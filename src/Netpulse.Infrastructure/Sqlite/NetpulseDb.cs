@@ -135,8 +135,31 @@ public sealed class NetpulseDb : IDisposable
               profile_id TEXT,
               adapter_id TEXT
             );
+            CREATE TABLE IF NOT EXISTS route_samples (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              ts INTEGER NOT NULL,
+              profile_id TEXT NOT NULL,
+              target_id TEXT NOT NULL,
+              hop INTEGER NOT NULL,
+              ip TEXT,
+              rtt_ms REAL,
+              ok INTEGER NOT NULL,
+              status TEXT
+            );
+            CREATE INDEX IF NOT EXISTS ix_route_ts ON route_samples(ts);
+            CREATE TABLE IF NOT EXISTS route_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              ts INTEGER NOT NULL,
+              profile_id TEXT NOT NULL,
+              target_id TEXT NOT NULL,
+              message TEXT NOT NULL
+            );
             """;
         cmd.ExecuteNonQuery();
+        EnsureColumn("speedtests", "idle_ms", "REAL");
+        EnsureColumn("speedtests", "down_load_ms", "REAL");
+        EnsureColumn("speedtests", "up_load_ms", "REAL");
+        EnsureColumn("speedtests", "bloat_grade", "TEXT");
         using var check = _conn.CreateCommand();
         check.CommandText = "SELECT COUNT(*) FROM schema_info";
         var n = Convert.ToInt32(check.ExecuteScalar());
@@ -146,6 +169,22 @@ public sealed class NetpulseDb : IDisposable
             ins.CommandText = "INSERT INTO schema_info(version) VALUES (1)";
             ins.ExecuteNonQuery();
         }
+    }
+
+    private void EnsureColumn(string table, string col, string type)
+    {
+        using var q = _conn.CreateCommand();
+        q.CommandText = $"PRAGMA table_info({table})";
+        using var r = q.ExecuteReader();
+        while (r.Read())
+        {
+            if (string.Equals(r.GetString(1), col, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+        r.Close();
+        using var alter = _conn.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {col} {type}";
+        alter.ExecuteNonQuery();
     }
 
     public void Dispose() => _conn.Dispose();

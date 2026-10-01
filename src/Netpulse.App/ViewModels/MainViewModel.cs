@@ -3,11 +3,14 @@ using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Windows.Media;
+using Netpulse.App.Controls;
 using Netpulse.Core.Abstractions;
 using UiLoc = Netpulse.App.Loc.I18n;
 using Netpulse.Core.Formatting;
 using Netpulse.Core.Models;
 using Netpulse.Core.Monitoring;
+using Netpulse.Core.Reports;
 using Netpulse.Core.Speedtest;
 using Netpulse.Infrastructure.Config;
 using Netpulse.Infrastructure.Sqlite;
@@ -24,6 +27,8 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly SpeedtestService _speed;
     private readonly IAppPaths _paths;
     private DateTimeOffset _uiTick;
+    private DateTimeOffset _lossTick;
+    private string _lossTabId = "all";
 
     public MainViewModel(
         MonitorHub hub,
@@ -55,14 +60,33 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshStats();
         RefreshAdapters();
         RefreshProfiles();
+        hub.RouteUpdated += r =>
+        {
+            var d = Application.Current?.Dispatcher;
+            if (d is null) return;
+            d.BeginInvoke(() => ApplyRoute(r));
+        };
     }
 
     [ObservableProperty] private string _section = "Dashboard";
+    [ObservableProperty] private string _historyPane = "metrics";
     [ObservableProperty] private string _statusText = "Starting";
     [ObservableProperty] private string _qualityText = "…";
     [ObservableProperty] private string _pingText = "—";
     [ObservableProperty] private string _lossText = "—";
     [ObservableProperty] private string _jitterText = "—";
+    [ObservableProperty] private string _minText = "—";
+    [ObservableProperty] private string _avgText = "—";
+    [ObservableProperty] private string _maxText = "—";
+    [ObservableProperty] private string _mosText = "—";
+    [ObservableProperty] private string _loss5Text = "—";
+    [ObservableProperty] private string _loss1hText = "—";
+    [ObservableProperty] private string _quickHost = "";
+    [ObservableProperty] private string _lossBucket = "Hour";
+    [ObservableProperty] private bool _lossCombined = true;
+    [ObservableProperty] private bool _lossEmpty;
+    [ObservableProperty] private double _lossWindowSeconds = 3600;
+    [ObservableProperty] private IReadOnlyList<ChartSeries> _lossSeries = [];
     [ObservableProperty] private string _downText = "—";
     [ObservableProperty] private string _upText = "—";
     [ObservableProperty] private string _speedText = "—";
@@ -71,7 +95,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _onlineText = "";
     [ObservableProperty] private string _logSearch = "";
     [ObservableProperty] private string _logCategory = "All";
-    [ObservableProperty] private string _statsBucket = "Day";
+    [ObservableProperty] private string _statsBucket = "Hour";
     [ObservableProperty] private string _statsSummary = "";
     [ObservableProperty] private string _newTargetHost = "";
     [ObservableProperty] private string _newTargetName = "";
@@ -83,6 +107,15 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<double> _upSpark = [];
     [ObservableProperty] private IReadOnlyList<double> _lossSpark = [];
     [ObservableProperty] private IReadOnlyList<double> _statsSpark = [];
+    [ObservableProperty] private IReadOnlyList<double> _statsPingSpark = [];
+    [ObservableProperty] private IReadOnlyList<double> _statsLossSpark = [];
+    [ObservableProperty] private IReadOnlyList<double> _statsDownSpark = [];
+    [ObservableProperty] private IReadOnlyList<double> _statsUpSpark = [];
+    [ObservableProperty] private double _statsWindowSeconds = 86400;
+    [ObservableProperty] private string _routeHost = "";
+    [ObservableProperty] private string _routeBanner = "";
+    [ObservableProperty] private bool _routeTable = true;
+    [ObservableProperty] private IReadOnlyList<IReadOnlyList<double?>> _routeHeat = [];
 
     public AppSettings Settings { get; }
     public ObservableCollection<TargetLiveState> Targets { get; } = [];
@@ -90,6 +123,15 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<SpeedtestResult> Speedtests { get; } = [];
     public ObservableCollection<Profile> Profiles { get; } = [];
     public ObservableCollection<AdapterChoice> Adapters { get; } = [];
+    public ObservableCollection<PingStatRow> StatsPingRows { get; } = [];
+    public ObservableCollection<LossStatRow> StatsLossRows { get; } = [];
+    public ObservableCollection<RateStatRow> StatsDownRows { get; } = [];
+    public ObservableCollection<RateStatRow> StatsUpRows { get; } = [];
+    public ObservableCollection<OutageStatRow> StatsOutageRows { get; } = [];
+    public ObservableCollection<HopLiveState> RouteHops { get; } = [];
+    public ObservableCollection<LossTabItem> LossTabs { get; } = [];
+    public ObservableCollection<LossStatRow> LossDetailRows { get; } = [];
+    public ObservableCollection<LossSummaryRow> LossSummaryRows { get; } = [];
     public IReadOnlyList<IdLabel> CategoryOptions =>
     [
         new("All", UiLoc.Current["cat.All"]),
@@ -104,6 +146,7 @@ public sealed partial class MainViewModel : ObservableObject
     ];
     public IReadOnlyList<IdLabel> BucketOptions =>
     [
+        new("Minute", UiLoc.Current["bucket.Minute"]),
         new("Hour", UiLoc.Current["bucket.Hour"]),
         new("Day", UiLoc.Current["bucket.Day"]),
         new("Week", UiLoc.Current["bucket.Week"]),
@@ -126,6 +169,7 @@ public sealed partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(CategoryOptions));
             Apply(_hub.Current);
             RefreshStats();
+            if (Section == "Loss") RefreshLoss();
         }
     }
 
@@ -136,6 +180,14 @@ public sealed partial class MainViewModel : ObservableObject
         PingText = $"{NetFormat.Ping(s.AggregatePingMs)} ms";
         LossText = NetFormat.Loss(s.Loss1m);
         JitterText = $"{s.AggregateJitterMs:0.0} ms";
+        MinText = $"{NetFormat.Ping(s.AggregateMinMs)} ms";
+        AvgText = $"{NetFormat.Ping(s.AggregateAvgMs)} ms";
+        MaxText = $"{NetFormat.Ping(s.AggregateMaxMs)} ms";
+        MosText = s.AggregatePingMs is { } ping
+            ? RoutePolicy.MosEstimate(ping, s.Loss1m).ToString("0.00")
+            : "—";
+        Loss5Text = NetFormat.Loss(s.Loss5m);
+        Loss1hText = NetFormat.Loss(s.Loss1h);
         DownText = NetFormat.Throughput(s.RecvBps, Settings.Units.Throughput);
         UpText = NetFormat.Throughput(s.SentBps, Settings.Units.Throughput);
         AdapterLabel = s.AdapterName;
@@ -148,14 +200,84 @@ public sealed partial class MainViewModel : ObservableObject
         UpSpark = s.UpSpark.Select(v => v * 8 / 1_000_000.0).ToList();
         LossSpark = s.LossSpark;
         if (s.LastSpeedtest is { Error: null } st)
-            SpeedText = $"↓ {st.DownloadMbps:0.00}  ↑ {st.UploadMbps:0.00} Mbps";
+            SpeedText = $"↓ {st.DownloadMbps:0.00}  ↑ {st.UploadMbps:0.00} Mbps  {st.BloatGrade}";
         else if (s.SpeedtestPhase is not SpeedtestPhase.Idle)
             SpeedText = $"{s.SpeedtestPhase} {s.SpeedtestLiveMbps:0.00} Mbps";
         Targets.Clear();
         foreach (var t in s.Targets) Targets.Add(t);
+        if (Section == "Loss" && DateTimeOffset.UtcNow - _lossTick > TimeSpan.FromSeconds(5))
+            RefreshLoss();
     }
 
-    [RelayCommand] private void Go(string section) => Section = section;
+    [RelayCommand]
+    private void Go(string section)
+    {
+        Section = section;
+        if (section is "History" or "Statistics")
+        {
+            HistoryPane = "metrics";
+            RefreshStats();
+        }
+        if (section == "Loss") RefreshLoss();
+    }
+
+    partial void OnLossBucketChanged(string value) => RefreshLoss();
+
+    [RelayCommand]
+    private void SelectLossTab(string? id)
+    {
+        _lossTabId = string.IsNullOrWhiteSpace(id) ? "all" : id;
+        RefreshLoss();
+    }
+
+    [RelayCommand]
+    private void Hist(string pane)
+    {
+        Section = "History";
+        HistoryPane = pane;
+        if (pane == "metrics") RefreshStats();
+        if (pane == "log") ReloadLog();
+        if (pane == "speed") ReloadSpeed();
+    }
+
+    partial void OnStatsBucketChanged(string value) => RefreshStats();
+
+    private void ApplyRoute(RouteSnapshot r)
+    {
+        RouteHost = r.TargetHost;
+        RouteBanner = r.Banner == "tracing" ? UiLoc.Current["route.tracing"] : r.Banner == "" ? "" : UiLoc.Current.Get(r.Banner);
+        if (r.Banner is "ipv4-only" or "dns") RouteBanner = r.Banner;
+        RouteHeat = r.Heat;
+        RouteHops.Clear();
+        foreach (var h in r.Hops) RouteHops.Add(h);
+    }
+
+    [RelayCommand]
+    private void CopyRoute()
+    {
+        Clipboard.SetText(Netpulse.Core.Reports.IspReport.HopsText(RouteHops) + Environment.NewLine + UiLoc.Current["route.icmp"]);
+    }
+
+    [RelayCommand]
+    private void SaveIspReport()
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "TXT|*.txt",
+            FileName = $"rttstat-report-{DateTime.Now:yyyyMMdd-HHmm}.txt"
+        };
+        if (dlg.ShowDialog() != true) return;
+        var from = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds();
+        var hopsDb = _repo.LastRouteTable(from);
+        var outs = string.Join("\n", StatsOutageRows.Select(o => $"{o.Start} {o.Duration} {o.Cause}"));
+        var body = Netpulse.Core.Reports.IspReport.Build(
+            DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
+            StatsSummary,
+            outs,
+            string.IsNullOrWhiteSpace(hopsDb) ? Netpulse.Core.Reports.IspReport.HopsText(RouteHops) : hopsDb,
+            SpeedText);
+        File.WriteAllText(dlg.FileName, body);
+    }
 
     [RelayCommand]
     private void Pause()
@@ -225,6 +347,7 @@ public sealed partial class MainViewModel : ObservableObject
         var now = DateTimeOffset.Now;
         DateTimeOffset from = StatsBucket switch
         {
+            "Minute" => now.AddMinutes(-30),
             "Hour" => now.AddHours(-1),
             "Week" => StartOfWeek(now),
             _ => now.Date
@@ -238,9 +361,59 @@ public sealed partial class MainViewModel : ObservableObject
             string.Format(UiLoc.Current["stats.outages"], row.OutageCount, tot, longest) + "\n" +
             string.Format(UiLoc.Current["stats.traffic"], $"{row.BytesRecv / 1_000_000.0:0.0}", $"{row.BytesSent / 1_000_000.0:0.0}") + "\n" +
             string.Format(UiLoc.Current["stats.speed"], row.Speedtests, $"{row.BestDown:0.00}", $"{row.BestUp:0.00}");
-        var bucket = StatsBucket == "Week" ? "day" : StatsBucket == "Hour" ? "minute" : "hour";
-        var series = _repo.QueryPingSeries(from.ToUniversalTime().ToUnixTimeMilliseconds(), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), bucket);
-        StatsSpark = series.Select(p => p.AvgPing).ToList();
+        var fromMs = from.ToUniversalTime().ToUnixTimeMilliseconds();
+        var toMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var bucket = StatsBucket switch
+        {
+            "Minute" or "Hour" => "minute",
+            "Week" => "day",
+            _ => "hour"
+        };
+        StatsWindowSeconds = Math.Max(60, (toMs - fromMs) / 1000.0);
+        var ping = _repo.QueryPingSeries(fromMs, toMs, bucket);
+        var nic = _repo.QueryNicSeries(fromMs, toMs, bucket);
+        StatsPingSpark = ping.Select(p => p.AvgPing).ToList();
+        StatsLossSpark = ping.Select(p => p.Loss).ToList();
+        StatsDownSpark = nic.Select(n => n.RecvBps * 8 / 1_000_000.0).ToList();
+        StatsUpSpark = nic.Select(n => n.SentBps * 8 / 1_000_000.0).ToList();
+        StatsSpark = StatsPingSpark;
+
+        StatsPingRows.Clear();
+        StatsLossRows.Clear();
+        foreach (var p in ping)
+        {
+            var time = FmtTs(p.Ts);
+            StatsPingRows.Add(new PingStatRow(time, $"{p.AvgPing:0.0}", $"{p.MinPing:0.0}", $"{p.MaxPing:0.0}"));
+            StatsLossRows.Add(new LossStatRow(time, $"{p.Loss:0.00}"));
+        }
+        StatsDownRows.Clear();
+        StatsUpRows.Clear();
+        foreach (var n in nic)
+        {
+            var time = FmtTs(n.Ts);
+            StatsDownRows.Add(new RateStatRow(time, $"{n.RecvBps * 8 / 1_000_000.0:0.000}"));
+            StatsUpRows.Add(new RateStatRow(time, $"{n.SentBps * 8 / 1_000_000.0:0.000}"));
+        }
+        StatsOutageRows.Clear();
+        foreach (var o in _repo.QueryOutages(fromMs, toMs))
+        {
+            var start = DateTimeOffset.FromUnixTimeMilliseconds(o.StartedTs).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+            var end = o.EndedTs is { } e
+                ? DateTimeOffset.FromUnixTimeMilliseconds(e).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                : "—";
+            StatsOutageRows.Add(new OutageStatRow(start, end, TimeSpan.FromMilliseconds(o.DurationMs).ToString(@"hh\:mm\:ss"), o.Cause));
+        }
+    }
+
+    private string FmtTs(long ts)
+    {
+        var t = DateTimeOffset.FromUnixTimeMilliseconds(ts).ToLocalTime();
+        return StatsBucket switch
+        {
+            "Minute" or "Hour" => t.ToString("HH:mm"),
+            "Week" => t.ToString("dd.MM"),
+            _ => t.ToString("dd.MM HH:mm")
+        };
     }
 
     [RelayCommand]
@@ -248,7 +421,25 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV|*.csv", FileName = "rttstat-stats.csv" };
         if (dlg.ShowDialog() != true) return;
-        File.WriteAllText(dlg.FileName, StatsSummary.Replace("\n", "\r\n"));
+        var lines = new List<string> { StatsSummary.Replace("\n", "\r\n"), "", "Ping", "Time,Avg,Min,Max" };
+        lines.AddRange(StatsPingRows.Select(r => $"{r.Time},{r.Avg},{r.Min},{r.Max}"));
+        lines.Add("");
+        lines.Add("Loss");
+        lines.Add("Time,Loss");
+        lines.AddRange(StatsLossRows.Select(r => $"{r.Time},{r.Loss}"));
+        lines.Add("");
+        lines.Add("Download Mbps");
+        lines.Add("Time,Mbps");
+        lines.AddRange(StatsDownRows.Select(r => $"{r.Time},{r.Mbps}"));
+        lines.Add("");
+        lines.Add("Upload Mbps");
+        lines.Add("Time,Mbps");
+        lines.AddRange(StatsUpRows.Select(r => $"{r.Time},{r.Mbps}"));
+        lines.Add("");
+        lines.Add("Outages");
+        lines.Add("Start,End,Duration,Cause");
+        lines.AddRange(StatsOutageRows.Select(r => $"{r.Start},{r.End},{r.Duration},{r.Cause}"));
+        File.WriteAllLines(dlg.FileName, lines);
     }
 
     [RelayCommand]
@@ -290,6 +481,86 @@ public sealed partial class MainViewModel : ObservableObject
         NewTargetName = "";
         RefreshProfiles();
     }
+
+    public bool StartWithWindowsTray
+    {
+        get => Settings.StartWithWindows;
+        set
+        {
+            if (Settings.StartWithWindows == value) return;
+            Settings.StartWithWindows = value;
+            AutostartService.Apply(value);
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    [RelayCommand]
+    private void QuickAdd() => AddHosts(QuickHost, clear: true);
+
+    [RelayCommand]
+    private void AddPreset(string? host) => AddHosts(host, clear: false);
+
+    [RelayCommand]
+    private void RemoveTarget(TargetLiveState? row)
+    {
+        if (row is null) return;
+        var profile = _profiles.Active;
+        var t = profile.Targets.FirstOrDefault(x => x.Id == row.TargetId);
+        if (t is null) return;
+        profile.Targets.Remove(t);
+        _profiles.Upsert(profile);
+        RefreshProfiles();
+    }
+
+    private void AddHosts(string? raw, bool clear)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return;
+        var profile = _profiles.Active;
+        var changed = false;
+        foreach (var part in raw.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var existing = profile.Targets.FirstOrDefault(t => string.Equals(t.Host, part, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                if (!existing.Enabled)
+                {
+                    existing.Enabled = true;
+                    changed = true;
+                }
+                continue;
+            }
+            if (profile.Targets.Count(t => t.Enabled) >= 32) break;
+            profile.Targets.Add(new Target
+            {
+                DisplayName = FriendlyName(part),
+                Host = part,
+                Role = part is "1.1.1.1" or "1.0.0.1" or "8.8.8.8" or "8.8.4.4" or "9.9.9.9" or "77.88.8.8"
+                    ? TargetRole.Dns
+                    : TargetRole.Custom,
+                Enabled = true
+            });
+            changed = true;
+        }
+        if (changed)
+        {
+            _profiles.Upsert(profile);
+            RefreshProfiles();
+        }
+        if (clear) QuickHost = "";
+    }
+
+    private static string FriendlyName(string host) => host.ToLowerInvariant() switch
+    {
+        "1.1.1.1" or "1.0.0.1" => "Cloudflare",
+        "8.8.8.8" or "8.8.4.4" => "Google DNS",
+        "9.9.9.9" => "Quad9",
+        "208.67.222.222" or "208.67.220.220" => "OpenDNS",
+        "77.88.8.8" => "Yandex DNS",
+        "ya.ru" => "Yandex",
+        "google.com" => "Google",
+        _ => host
+    };
 
     [RelayCommand]
     private void DeleteProfile()
@@ -378,6 +649,129 @@ public sealed partial class MainViewModel : ObservableObject
         MessageBox.Show(UiLoc.Current["msg.reset"], "Rttstat");
     }
 
+    private void RefreshLoss()
+    {
+        _lossTick = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
+        DateTimeOffset from = LossBucket switch
+        {
+            "Minute" => now.AddMinutes(-30),
+            "Hour" => now.AddHours(-1),
+            "Week" => StartOfWeek(now),
+            _ => now.Date
+        };
+        var bucketMs = LossBucket switch
+        {
+            "Minute" or "Hour" => 60_000L,
+            "Week" => 86_400_000L,
+            _ => 3_600_000L
+        };
+        var fromMs = from.ToUniversalTime().ToUnixTimeMilliseconds();
+        var toMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        LossWindowSeconds = Math.Max(60, (toMs - fromMs) / 1000.0);
+
+        IReadOnlyList<TargetLossPoint> points = [];
+        try
+        {
+            points = _repo.QueryLossByTarget(fromMs, toMs, bucketMs, _profiles.Active.Id.ToString());
+        }
+        catch
+        {
+            points = [];
+        }
+
+        var start = fromMs / bucketMs * bucketMs;
+        var end = toMs / bucketMs * bucketMs;
+        var times = new List<long>();
+        if (end >= start && bucketMs > 0)
+        {
+            var guard = 0;
+            for (var t = start; t <= end && guard < 2000; t += bucketMs, guard++)
+                times.Add(t);
+        }
+
+        var byTarget = points
+            .GroupBy(p => p.TargetId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.GroupBy(p => p.Ts).ToDictionary(x => x.Key, x => x.Last().Loss),
+                StringComparer.OrdinalIgnoreCase);
+        var targets = _profiles.Active.Targets.Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Host)).ToList();
+        var known = targets.Select(t => t.Id.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in byTarget.Keys)
+        {
+            if (known.Contains(id)) continue;
+            targets.Add(new Target { Id = Guid.TryParse(id, out var g) ? g : Guid.NewGuid(), DisplayName = id, Host = id });
+        }
+
+        var built = new List<(string Id, string Name, ChartSeries Series, double? Avg, double? Max, double? Last)>();
+        var colorIndex = 0;
+        foreach (var target in targets)
+        {
+            var id = target.Id.ToString();
+            byTarget.TryGetValue(id, out var map);
+            map ??= new Dictionary<long, double>();
+            var values = times.Select(t => map.TryGetValue(t, out var v) ? v : double.NaN).ToList();
+            var finite = values.Where(v => !double.IsNaN(v)).ToList();
+            var brush = Freeze(Palette[colorIndex++ % Palette.Length]);
+            built.Add((id, string.IsNullOrWhiteSpace(target.DisplayName) ? target.Host : target.DisplayName, new ChartSeries
+            {
+                Name = string.IsNullOrWhiteSpace(target.DisplayName) ? target.Host : target.DisplayName,
+                Stroke = brush,
+                Values = values
+            }, finite.Count == 0 ? null : finite.Average(), finite.Count == 0 ? null : finite.Max(), finite.Count == 0 ? null : finite[^1]));
+        }
+
+        if (built.All(b => b.Id != _lossTabId))
+            _lossTabId = "all";
+        LossCombined = _lossTabId == "all";
+        LossSeries = LossCombined ? built.Select(b => b.Series).ToList() : built.Where(b => b.Id == _lossTabId).Select(b => b.Series).ToList();
+        LossEmpty = !built.Any(b => b.Series.Values.Any(v => !double.IsNaN(v)));
+
+        LossTabs.Clear();
+        LossTabs.Add(new LossTabItem("all", UiLoc.Current["loss.all"], LossCombined));
+        foreach (var b in built)
+            LossTabs.Add(new LossTabItem(b.Id, b.Name, b.Id == _lossTabId));
+
+        LossSummaryRows.Clear();
+        foreach (var b in built)
+            LossSummaryRows.Add(new LossSummaryRow(b.Name, FmtLoss(b.Avg), FmtLoss(b.Max), FmtLoss(b.Last)));
+
+        LossDetailRows.Clear();
+        var selected = built.FirstOrDefault(b => b.Id == _lossTabId);
+        if (selected.Series is not null)
+        {
+            for (var i = 0; i < times.Count && i < selected.Series.Values.Count; i++)
+            {
+                var v = selected.Series.Values[i];
+                if (double.IsNaN(v)) continue;
+                LossDetailRows.Add(new LossStatRow(FmtLossTs(times[i]), $"{v:0.00}"));
+            }
+        }
+    }
+
+    private string FmtLossTs(long ts)
+    {
+        var t = DateTimeOffset.FromUnixTimeMilliseconds(ts).ToLocalTime();
+        return LossBucket switch
+        {
+            "Minute" or "Hour" => t.ToString("HH:mm"),
+            "Week" => t.ToString("dd.MM"),
+            _ => t.ToString("dd.MM HH:mm")
+        };
+    }
+
+    private static string FmtLoss(double? v) => v is null ? "—" : $"{v:0.00}%";
+
+    private static SolidColorBrush Freeze(string hex)
+    {
+        var b = (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
+        b.Freeze();
+        return b;
+    }
+
+    private static readonly string[] Palette = ["#F07178", "#7EC8E3", "#F5C542", "#3DDC97", "#C792EA", "#FF9B6A", "#82AAFF", "#F0A0C0"];
+
     private static DateTimeOffset StartOfWeek(DateTimeOffset now)
     {
         var diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
@@ -394,3 +788,9 @@ public sealed record IdLabel(string Id, string Label)
 {
     public override string ToString() => Label;
 }
+public sealed record PingStatRow(string Time, string Avg, string Min, string Max);
+public sealed record LossStatRow(string Time, string Loss);
+public sealed record LossSummaryRow(string Name, string Avg, string Max, string Last);
+public sealed record LossTabItem(string Id, string Title, bool Selected);
+public sealed record RateStatRow(string Time, string Mbps);
+public sealed record OutageStatRow(string Start, string End, string Duration, string Cause);

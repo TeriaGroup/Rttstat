@@ -133,7 +133,7 @@ public sealed class TrayController : IDisposable
             _currentIcon = next;
         }
 
-        _icon.ToolTipText = BuildTip(s);
+        _icon.ToolTipText = BuildTip(s, _hub.CurrentRoute);
         if (_settings.Current.Tray.HudEnabled)
             _hud.Apply(s, _settings.Current.Tray);
         else if (_hud.IsVisible) _hud.Hide();
@@ -141,7 +141,7 @@ public sealed class TrayController : IDisposable
             _flyout.Apply(s, _profiles.All);
     }
 
-    private static string BuildTip(MonitorSnapshot s)
+    private static string BuildTip(MonitorSnapshot s, RouteSnapshot route)
     {
         if (s.Quality == LinkQuality.Down && s.OpenOutage is { } o)
             return $"Rttstat  DOWN  {NetFormat.Duration(o.Duration)}\n{s.StatusText}";
@@ -155,6 +155,8 @@ public sealed class TrayController : IDisposable
         var dns = s.Targets.FirstOrDefault(t => t.Role == TargetRole.Dns);
         if (gw is not null || dns is not null)
             lines.Add($"gw {NetFormat.Ping(gw?.LastRttMs)}  dns {NetFormat.Ping(dns?.LastRttMs)}");
+        if (route.Hops.Count > 0 && route.Hops[^1].LossPercent > 0)
+            lines.Add($"dest loss {route.Hops[^1].LossPercent:0.0}%");
         return string.Join("\n", lines);
     }
 
