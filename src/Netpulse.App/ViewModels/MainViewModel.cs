@@ -167,6 +167,7 @@ public sealed partial class MainViewModel : ObservableObject
     public IReadOnlyList<string> StripMetrics { get; } = ["Ping", "Loss", "Down"];
     public IReadOnlyList<string> Schedules { get; } = ["Off", "Every 6", "Every 12", "04:00"];
     public UiLoc Ui => UiLoc.Current;
+    public string PingUnit => UiLoc.Current.Language == "en" ? " ms" : " мс";
 
     public string SelectedLanguage
     {
@@ -179,6 +180,7 @@ public sealed partial class MainViewModel : ObservableObject
             _settings.Save();
             OnPropertyChanged();
             OnPropertyChanged(nameof(BucketOptions));
+            OnPropertyChanged(nameof(PingUnit));
             OnPropertyChanged(nameof(CategoryOptions));
             Apply(_hub.Current);
             ApplyRoute(_hub.CurrentRoute);
@@ -286,8 +288,7 @@ public sealed partial class MainViewModel : ObservableObject
                 row = new TargetRow { Id = t.TargetId, Swatch = Freeze(Palette[Rows.Count % Palette.Length]) };
                 Rows.Add(row);
             }
-            var ipv6 = System.Net.IPAddress.TryParse(t.Host, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
-            row.Name = ipv6 ? $"{t.DisplayName} — {UiLoc.Current["ipv4.only"]}" : t.DisplayName;
+            row.Name = t.DisplayName;
             row.Host = t.Host;
             row.Ip = t.ResolvedIp;
             row.Rtt = NetFormat.Ping(t.LastRttMs);
@@ -357,7 +358,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private List<ChartSeries> AllLive(Func<TargetRow, IReadOnlyList<double>> pick)
-        => Rows.Select(r => Series(r.Name, r.Swatch, pick(r), ReferenceEquals(r, SelectedRow) ? 2.8 : 1.5)).ToList();
+        => Rows.Select(r => Series(r.Name, r.Swatch, SeriesAlign.Right(pick(r), 40), ReferenceEquals(r, SelectedRow) ? 2.8 : 1.5)).ToList();
 
     private void LoadHistoryCharts()
     {
@@ -385,7 +386,7 @@ public sealed partial class MainViewModel : ObservableObject
             foreach (var r in Rows)
             {
                 var pts = _repo.QueryTargetSeries(fromMs, toMs, bucketMs, profileId, r.Id.ToString());
-                var pingMap = pts.Where(p => p.AvgPing is not null).ToDictionary(p => p.Ts, p => p.AvgPing!.Value);
+                var pingMap = pts.Where(p => p.AvgPing is not null).GroupBy(p => p.Ts).ToDictionary(g => g.Key, g => g.Last().AvgPing!.Value);
                 lossBy.TryGetValue(r.Id.ToString(), out var lossMap);
                 var thick = ReferenceEquals(r, row) ? 2.8 : 1.5;
                 pingList.Add(Series(r.Name, r.Swatch, PathDiagnosis.Align(times, pingMap), thick));
@@ -522,16 +523,22 @@ public sealed partial class MainViewModel : ObservableObject
         Settings.HiddenHops ??= [];
         var prefix = SelectedRow.Id.ToString("N") + "|";
         HasHiddenHops = Settings.HiddenHops.Any(k => k.StartsWith(prefix, StringComparison.Ordinal));
-        RouteHops.Clear();
-        foreach (var h in r.Hops)
-        {
-            if (Settings.HiddenHops.Contains(HopKey(SelectedRow.Id, h))) continue;
+        var visible = r.Hops.Where(h => !HopHide.IsHidden(Settings.HiddenHops, SelectedRow.Id, h.Hop, h.Ip)).ToList();
+        foreach (var h in visible)
             h.Note = h.IntermediateOnlyLoss ? note : "";
-            RouteHops.Add(h);
+        if (RouteHops.Count == visible.Count && RouteHops.Select(h => h.Ip).SequenceEqual(visible.Select(h => h.Ip)))
+        {
+            for (var i = 0; i < visible.Count; i++)
+                RouteHops[i] = visible[i];
+        }
+        else
+        {
+            RouteHops.Clear();
+            foreach (var h in visible) RouteHops.Add(h);
         }
         DiagnosisText = FormatDiagnosis(PathDiagnosis.Diagnose(r.Hops, !r.Tracing && r.Hops.Count > 0));
-        if (r.Banner == "ipv4-only")
-            DiagnosisText = UiLoc.Current["ipv4.only"];
+        if (r.Banner == "no-ipv6")
+            DiagnosisText = UiLoc.Current["no.ipv6"];
     }
 
     [RelayCommand]
@@ -539,7 +546,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (hop is null || SelectedRow is null) return;
         Settings.HiddenHops ??= [];
-        var key = HopKey(SelectedRow.Id, hop);
+        var key = HopHide.Key(SelectedRow.Id, hop.Hop, hop.Ip);
         if (!Settings.HiddenHops.Contains(key))
             Settings.HiddenHops.Add(key);
         _settings.Save();
@@ -556,9 +563,6 @@ public sealed partial class MainViewModel : ObservableObject
         _settings.Save();
         ApplyRoute(_hub.CurrentRoute);
     }
-
-    private static string HopKey(Guid targetId, HopLiveState hop)
-        => targetId.ToString("N") + "|" + hop.Hop + "|" + hop.Ip;
 
     [RelayCommand]
     private void CopyRoute()
@@ -790,6 +794,18 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshProfiles();
     }
 
+    public bool PreferIpv6
+    {
+        get => Settings.PreferIpv6;
+        set
+        {
+            if (Settings.PreferIpv6 == value) return;
+            Settings.PreferIpv6 = value;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
     public bool StartWithWindowsTray
     {
         get => Settings.StartWithWindows;
@@ -826,8 +842,9 @@ public sealed partial class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(raw)) return;
         var profile = _profiles.Active;
         var changed = false;
-        foreach (var part in raw.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var token in raw.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
+            var part = IpChoice.NormalizeHost(token);
             var existing = profile.Targets.FirstOrDefault(t => string.Equals(t.Host, part, StringComparison.OrdinalIgnoreCase));
             if (existing is not null)
             {
@@ -843,7 +860,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 DisplayName = FriendlyName(part),
                 Host = part,
-                Role = part is "1.1.1.1" or "1.0.0.1" or "8.8.8.8" or "8.8.4.4" or "9.9.9.9" or "77.88.8.8"
+                Role = part is "1.1.1.1" or "1.0.0.1" or "8.8.8.8" or "8.8.4.4" or "9.9.9.9" or "77.88.8.8" or "2606:4700:4700::1111"
                     ? TargetRole.Dns
                     : TargetRole.Custom,
                 Enabled = true
@@ -860,7 +877,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private static string FriendlyName(string host) => host.ToLowerInvariant() switch
     {
-        "1.1.1.1" or "1.0.0.1" => "Cloudflare",
+        "1.1.1.1" or "1.0.0.1" or "2606:4700:4700::1111" => "Cloudflare",
         "8.8.8.8" or "8.8.4.4" => "Google DNS",
         "9.9.9.9" => "Quad9",
         "208.67.222.222" or "208.67.220.220" => "OpenDNS",

@@ -9,22 +9,23 @@ namespace Netpulse.Core.Monitoring;
 public sealed class PingEngine : IDisposable
 {
     private readonly Ping _ping = new();
-    private readonly Dictionary<Guid, (IPAddress Ip, DateTimeOffset At)> _dns = [];
+    private readonly Dictionary<Guid, (IPAddress Ip, DateTimeOffset At, bool PreferIpv6)> _dns = [];
 
     public async Task<(bool Ok, double? Rtt, string Status, string Resolved, bool IcmpError)> ProbeAsync(
         Target target,
         Profile profile,
         bool forceTcp,
+        bool preferIpv6,
         CancellationToken ct)
     {
-        var host = target.Host.Trim();
+        var host = IpChoice.NormalizeHost(target.Host);
         IPAddress? ip = null;
         try
         {
             if (IPAddress.TryParse(host, out var parsed))
-                ip = parsed;
+                ip = IpChoice.Unwrap(parsed);
             else
-                ip = await ResolveAsync(target, ct);
+                ip = await ResolveAsync(target, preferIpv6, ct);
         }
         catch (Exception ex)
         {
@@ -90,18 +91,18 @@ public sealed class PingEngine : IDisposable
         }
     }
 
-    private async Task<IPAddress?> ResolveAsync(Target target, CancellationToken ct)
+    private async Task<IPAddress?> ResolveAsync(Target target, bool preferIpv6, CancellationToken ct)
     {
         var every = Math.Max(0, target.ResolveDnsEverySec);
         if (every > 0 && _dns.TryGetValue(target.Id, out var cached)
+            && cached.PreferIpv6 == preferIpv6
             && DateTimeOffset.UtcNow - cached.At < TimeSpan.FromSeconds(every))
             return cached.Ip;
 
-        var entry = await Dns.GetHostEntryAsync(target.Host.Trim(), ct);
-        var ip = entry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)
-                 ?? entry.AddressList.FirstOrDefault();
+        var entry = await Dns.GetHostEntryAsync(IpChoice.NormalizeHost(target.Host), ct);
+        var ip = IpChoice.Prefer(null, entry.AddressList, preferIpv6);
         if (ip is not null)
-            _dns[target.Id] = (ip, DateTimeOffset.UtcNow);
+            _dns[target.Id] = (ip, DateTimeOffset.UtcNow, preferIpv6);
         return ip;
     }
 

@@ -68,10 +68,14 @@ public sealed class RouteEngine : BackgroundService
         IPAddress? ip;
         try
         {
-            if (!IPAddress.TryParse(target.Host, out ip))
+            var host = IpChoice.NormalizeHost(target.Host);
+            if (IPAddress.TryParse(host, out var parsed))
+                ip = IpChoice.Unwrap(parsed);
+            else
             {
-                var entry = await Dns.GetHostEntryAsync(target.Host, ct);
-                ip = entry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
+                var entry = await Dns.GetHostEntryAsync(host, ct);
+                ip = IpChoice.Prefer(null, entry.AddressList, _settings.Current.PreferIpv6);
+                if (ip is not null) ip = IpChoice.Unwrap(ip);
             }
         }
         catch
@@ -80,9 +84,15 @@ public sealed class RouteEngine : BackgroundService
             return;
         }
 
-        if (ip is null || ip.AddressFamily != AddressFamily.InterNetwork)
+        if (ip is null)
         {
-            Publish(target, false, "ipv4-only");
+            Publish(target, false, "dns");
+            return;
+        }
+
+        if (ip.AddressFamily == AddressFamily.InterNetworkV6 && IpChoice.LocalIpv6(ip) is null)
+        {
+            Publish(target, false, "no-ipv6");
             return;
         }
 
@@ -170,16 +180,22 @@ public sealed class RouteEngine : BackgroundService
     private (TtlReply[] Hops, bool Reached) Probe(IPAddress ip, int probeTo, int timeout, CancellationToken ct)
     {
         var hops = new TtlReply[probeTo];
-        var handle = IcmpTtl.OpenHandle();
+        var v6 = ip.AddressFamily == AddressFamily.InterNetworkV6;
+        var source = v6 ? IpChoice.LocalIpv6(ip) : null;
+        if (v6 && source is null)
+            return ([new TtlReply(false, false, "", null, "no-ipv6")], false);
+        var handle = v6 ? IcmpTtl.OpenHandle6() : IcmpTtl.OpenHandle();
         try
         {
             if (!IcmpTtl.HandleOk(handle))
-                return ([new TtlReply(false, false, "", null, "icmp-handle")], false);
+                return ([new TtlReply(false, false, "", null, v6 ? "no-ipv6" : "icmp-handle")], false);
 
             for (var ttl = 1; ttl <= probeTo; ttl++)
             {
                 ct.ThrowIfCancellationRequested();
-                hops[ttl - 1] = IcmpTtl.Ping(handle, ip, (byte)ttl, timeout, _payload);
+                hops[ttl - 1] = v6
+                    ? IcmpTtl.Ping6(handle, source!, ip, (byte)ttl, timeout, _payload)
+                    : IcmpTtl.Ping(handle, ip, (byte)ttl, timeout, _payload);
                 if (hops[ttl - 1] is { Ok: true, TtlExpired: false, Status: "ok" })
                     return (hops[..ttl], true);
             }

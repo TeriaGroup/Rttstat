@@ -68,7 +68,8 @@ public sealed class SeriesChart : FrameworkElement
         var typeface = new Typeface("Segoe UI");
         var pixels = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
-        for (var v = min; v <= max + step * 0.01; v += step)
+        var ticks = 0;
+        for (var v = min; v <= max + step * 0.01 && ticks < 8; v += step, ticks++)
         {
             var y = top + plotH - (v - min) / (max - min) * plotH;
             dc.DrawLine(gridPen, new Point(left, y), new Point(left + plotW, y));

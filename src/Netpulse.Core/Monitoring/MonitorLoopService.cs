@@ -171,7 +171,7 @@ public sealed class MonitorLoopService : BackgroundService
         }
 
         var forceTcp = state.UsingTcp || state.ConsecutiveIcmpErrors >= 10;
-        var result = await _ping.ProbeAsync(target, profile, forceTcp, ct);
+        var result = await _ping.ProbeAsync(target, profile, forceTcp, _settings.Current.PreferIpv6, ct);
         if (result.IcmpError)
         {
             state.ConsecutiveIcmpErrors++;

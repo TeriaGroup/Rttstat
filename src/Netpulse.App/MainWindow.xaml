@@ -62,6 +62,7 @@
           <TextBox x:Name="QuickHostBox" Width="200" Text="{Binding QuickHost, UpdateSourceTrigger=PropertyChanged}" PreviewKeyDown="OnQuickHostKey" Margin="0,0,8,6"/>
           <Button Content="{loc:L Key=add.target}" Command="{Binding QuickAddCommand}" Margin="0,0,8,6"/>
           <Button Content="1.1.1.1" Command="{Binding AddPresetCommand}" CommandParameter="1.1.1.1" Margin="0,0,6,6" Padding="8,4"/>
+          <Button Content="1.1.1.1 v6" Command="{Binding AddPresetCommand}" CommandParameter="2606:4700:4700::1111" Margin="0,0,6,6" Padding="8,4"/>
           <Button Content="8.8.8.8" Command="{Binding AddPresetCommand}" CommandParameter="8.8.8.8" Margin="0,0,6,6" Padding="8,4"/>
           <Button Content="9.9.9.9" Command="{Binding AddPresetCommand}" CommandParameter="9.9.9.9" Margin="0,0,6,6" Padding="8,4"/>
           <Button Content="ya.ru" Command="{Binding AddPresetCommand}" CommandParameter="ya.ru" Margin="0,0,6,6" Padding="8,4"/>
@@ -89,7 +90,7 @@
           <Border Style="{StaticResource Card}" Padding="8" Margin="0,0,6,0">
             <DockPanel>
               <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=chart.ping}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6"/>
-              <ctrl:SeriesChart Series="{Binding PingSeries}" WindowSeconds="{Binding ChartWindowSeconds}" UnitSuffix=" мс"/>
+              <ctrl:SeriesChart Series="{Binding PingSeries}" WindowSeconds="{Binding ChartWindowSeconds}" UnitSuffix="{Binding PingUnit}"/>
             </DockPanel>
           </Border>
           <Border Style="{StaticResource Card}" Padding="8" Margin="6,0,0,0">
@@ -141,6 +142,7 @@
           <DockPanel Margin="0,0,8,0">
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
               <Button DockPanel.Dock="Right" Content="{loc:L Key=hop.restore}" Command="{Binding ShowHiddenHopsCommand}"
+                      ToolTip="{loc:L Key=hop.restore.tip}"
                       Visibility="{Binding HasHiddenHops, Converter={x:Static vm:BoolToVis.Yes}}"/>
               <TextBlock Text="{Binding SelectedTitle}" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </DockPanel>
@@ -149,7 +151,7 @@
               <DataGridTemplateColumn Width="36">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
-                    <Button Content="×" Padding="4,0" Command="{Binding DataContext.HideHopCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                    <Button Content="×" Padding="4,0" ToolTip="{loc:L Key=hop.hide.tip}" Command="{Binding DataContext.HideHopCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
@@ -213,6 +215,7 @@
             <CheckBox Content="{loc:L Key=set.hud}" IsChecked="{Binding Settings.Tray.HudEnabled}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.mute}" IsChecked="{Binding Settings.Notifications.MuteAll}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.sound}" IsChecked="{Binding Settings.AlertSound}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.ipv6}" IsChecked="{Binding PreferIpv6}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.toast.outage}" IsChecked="{Binding Settings.Notifications.OnOutageStart}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.toast.th}" IsChecked="{Binding Settings.Notifications.OnPingThreshold}" Margin="0,0,0,8"/>
             <TextBlock Text="{loc:L Key=speed.title}" Margin="0,0,0,4"/>

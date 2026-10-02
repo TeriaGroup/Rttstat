@@ -95,7 +95,18 @@ public sealed class RollingWindow
             {
                 var item = selected[i];
                 if (rttNotLoss) list.Add(item.Ok ? item.Rtt ?? 0 : 0);
-                else list.Add(item.Ok ? 0 : 100);
+                else
+                {
+                    var start = Math.Max(0, i - 7);
+                    var fail = 0;
+                    var n = 0;
+                    for (var j = start; j <= i; j++)
+                    {
+                        n++;
+                        if (!selected[j].Ok) fail++;
+                    }
+                    list.Add(n == 0 ? 0 : fail * 100.0 / n);
+                }
             }
             return list;
         }

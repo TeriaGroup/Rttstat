@@ -20,6 +20,7 @@ public sealed class AppSettings
     public int MaxTtl { get; set; } = 30;
     public bool ReverseDns { get; set; }
     public bool AlertSound { get; set; }
+    public bool PreferIpv6 { get; set; }
     public List<string> HiddenHops { get; set; } = [];
 }
 
