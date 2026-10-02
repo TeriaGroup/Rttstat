@@ -21,7 +21,7 @@ public sealed class MonitorLoopService : BackgroundService
     private readonly Queue<double> _downSpark = new();
     private readonly Queue<double> _upSpark = new();
     private DateTimeOffset _onlineSince = DateTimeOffset.UtcNow;
-    private DateTimeOffset _lastQualityToast = DateTimeOffset.MinValue;
+    private readonly Dictionary<Guid, DateTimeOffset> _toastAt = [];
     private Guid _lastProfileId;
     private string _lastAdapterId = "";
     private bool _icmpBanner;
@@ -140,6 +140,7 @@ public sealed class MonitorLoopService : BackgroundService
             st.SessionLoss = st.Sent == 0 ? 0 : (st.Sent - st.Recv) * 100.0 / st.Sent;
             st.Mos = RoutePolicy.MosEstimate(st.AvgRtt5m ?? st.LastRttMs ?? 0, st.Loss1m);
             st.Spark = w.Spark(nowMs, TimeSpan.FromSeconds(ChartWindowSec), 40, true);
+            st.LossSpark = w.Spark(nowMs, TimeSpan.FromSeconds(ChartWindowSec), 40, false);
         }
 
         var liveList = targets.Select(t => _live.GetValueOrDefault(t.Id)).Where(x => x is not null).Cast<TargetLiveState>().ToList();
@@ -288,21 +289,19 @@ public sealed class MonitorLoopService : BackgroundService
 
     private void RaiseThresholds(Profile profile, List<TargetLiveState> live)
     {
-        if (DateTimeOffset.UtcNow - _lastQualityToast < TimeSpan.FromMinutes(10)) return;
-        foreach (var t in live.Where(t => t.Role is TargetRole.External or TargetRole.Dns))
+        var now = DateTimeOffset.UtcNow;
+        foreach (var t in live)
         {
-            if (t.LastRttMs >= profile.PingWarnMs)
-            {
-                _hub.EmitEvent(EventLevel.Warn, EventCategory.Threshold, $"{t.DisplayName} ping {t.LastRttMs:0} ms");
-                _lastQualityToast = DateTimeOffset.UtcNow;
-                return;
-            }
-            if (t.Loss5m >= profile.LossWarnPercent)
-            {
-                _hub.EmitEvent(EventLevel.Warn, EventCategory.Threshold, $"{t.DisplayName} loss {t.Loss5m:0.0}%");
-                _lastQualityToast = DateTimeOffset.UtcNow;
-                return;
-            }
+            var pingBad = t.LastRttMs >= profile.PingWarnMs;
+            var lossBad = t.Loss5m >= profile.LossWarnPercent;
+            if (!pingBad && !lossBad) continue;
+            if (_toastAt.TryGetValue(t.TargetId, out var last) && now - last < TimeSpan.FromMinutes(10))
+                continue;
+            _toastAt[t.TargetId] = now;
+            var msg = pingBad
+                ? $"{t.DisplayName} ping {t.LastRttMs:0} ms"
+                : $"{t.DisplayName} loss {t.Loss5m:0.0}%";
+            _hub.EmitEvent(EventLevel.Warn, EventCategory.Threshold, msg);
         }
     }
 

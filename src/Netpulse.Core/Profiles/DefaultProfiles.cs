@@ -7,8 +7,7 @@ public static class DefaultProfiles
     public static ProfileFile Create()
     {
         var home = Make("Home", "Default home profile", true);
-        var office = Make("Office", "Office / work profile", false);
-        return new ProfileFile { SchemaVersion = 1, Profiles = [home, office] };
+        return new ProfileFile { SchemaVersion = 1, Profiles = [home] };
     }
 
     public static Profile Make(string name, string description, bool active)

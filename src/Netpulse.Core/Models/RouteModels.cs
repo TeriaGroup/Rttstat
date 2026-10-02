@@ -16,6 +16,7 @@ public sealed class HopLiveState
     public int Recv { get; set; }
     public string Status { get; set; } = "";
     public bool IntermediateOnlyLoss { get; set; }
+    public string Note { get; set; } = "";
     public IReadOnlyList<double> Spark { get; set; } = [];
 }
 

@@ -38,6 +38,7 @@ public sealed class TargetLiveState
     public double StdDevMs { get; set; }
     public double Mos { get; set; }
     public IReadOnlyList<double> Spark { get; set; } = [];
+    public IReadOnlyList<double> LossSpark { get; set; } = [];
 }
 
 public sealed class NicSample

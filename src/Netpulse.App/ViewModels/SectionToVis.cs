@@ -7,6 +7,7 @@ namespace Netpulse.App.ViewModels;
 public sealed class SectionToVis : IValueConverter
 {
     public static readonly SectionToVis Dash = new("Dashboard");
+    public static readonly SectionToVis Monitor = new("Monitor");
     public static readonly SectionToVis Targets = new("Targets");
     public static readonly SectionToVis Log = new("Log");
     public static readonly SectionToVis Stats = new("Statistics");

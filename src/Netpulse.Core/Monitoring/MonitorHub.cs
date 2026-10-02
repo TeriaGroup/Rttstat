@@ -8,6 +8,7 @@ public sealed class MonitorHub
     private MonitorSnapshot _current = new();
     private RouteSnapshot _route = new();
     private volatile bool _paused;
+    private Guid? _traceTarget;
 
     public event Action<MonitorSnapshot>? Updated;
     public event Action<RouteSnapshot>? RouteUpdated;
@@ -32,6 +33,16 @@ public sealed class MonitorHub
     {
         get => _paused;
         set => _paused = value;
+    }
+
+    public Guid? TraceTarget
+    {
+        get { lock (_gate) return _traceTarget; }
+    }
+
+    public void SetTraceTarget(Guid? id)
+    {
+        lock (_gate) _traceTarget = id;
     }
 
     public void Publish(MonitorSnapshot snapshot)

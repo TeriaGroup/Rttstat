@@ -430,6 +430,34 @@ public sealed class SampleRepository
         }
     }
 
+    public IReadOnlyList<TargetPingPoint> QueryTargetSeries(long fromTs, long toTs, long bucketMs, string profileId, string targetId)
+    {
+        var size = bucketMs < 60_000 ? 60_000 : bucketMs;
+        lock (_db.Gate)
+        {
+            using var cmd = _db.Connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT (ts_minute / $size) * $size AS b,
+                       SUM(avg_rtt * ok_count) / NULLIF(SUM(ok_count), 0),
+                       SUM(fail_count) * 100.0 / NULLIF(SUM(ok_count + fail_count), 0)
+                FROM ping_minute
+                WHERE ts_minute >= $f AND ts_minute <= $t AND profile_id = $p AND target_id = $id
+                GROUP BY b
+                ORDER BY b
+                """;
+            cmd.Parameters.AddWithValue("$size", size);
+            cmd.Parameters.AddWithValue("$f", fromTs);
+            cmd.Parameters.AddWithValue("$t", toTs);
+            cmd.Parameters.AddWithValue("$p", profileId);
+            cmd.Parameters.AddWithValue("$id", targetId);
+            var list = new List<TargetPingPoint>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                list.Add(new TargetPingPoint(r.GetInt64(0), r.IsDBNull(1) ? null : r.GetDouble(1), r.IsDBNull(2) ? null : r.GetDouble(2)));
+            return list;
+        }
+    }
+
     public IReadOnlyList<NicPoint> QueryNicSeries(long fromTs, long toTs, string bucket)
     {
         var size = bucket switch { "hour" => 3_600_000L, "day" => 86_400_000L, _ => 60_000L };
@@ -597,5 +625,6 @@ public readonly record struct StatsRow(
 
 public readonly record struct ChartPoint(long Ts, double AvgPing, double MinPing, double MaxPing, double Loss);
 public readonly record struct TargetLossPoint(string TargetId, long Ts, double Loss);
+public readonly record struct TargetPingPoint(long Ts, double? AvgPing, double? Loss);
 public readonly record struct NicPoint(long Ts, double RecvBps, double SentBps);
 public readonly record struct OutageRow(long StartedTs, long? EndedTs, long DurationMs, string Cause, string Detail);

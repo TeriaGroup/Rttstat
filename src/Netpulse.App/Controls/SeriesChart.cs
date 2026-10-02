@@ -8,6 +8,7 @@ public sealed class ChartSeries
 {
     public string Name { get; init; } = "";
     public Brush Stroke { get; init; } = Brushes.White;
+    public double Thickness { get; init; } = 1.6;
     public IReadOnlyList<double> Values { get; init; } = [];
 }
 
@@ -84,7 +85,8 @@ public sealed class SeriesChart : FrameworkElement
             var x = left + frac * plotW;
             dc.DrawLine(gridPen, new Point(x, top), new Point(x, top + plotH));
             var t = now - span + TimeSpan.FromSeconds(span.TotalSeconds * frac);
-            var text = WindowSeconds <= 6 * 3600 ? t.ToString("HH:mm")
+            var text = WindowSeconds <= 600 ? t.ToString("HH:mm:ss")
+                : WindowSeconds <= 6 * 3600 ? t.ToString("HH:mm")
                 : WindowSeconds <= 48 * 3600 ? t.ToString("dd.MM HH:mm")
                 : t.ToString("dd.MM");
             var tft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, 11, axisBrush, pixels);
@@ -95,7 +97,7 @@ public sealed class SeriesChart : FrameworkElement
         foreach (var s in series)
         {
             if (s.Values.Count == 0) continue;
-            var pen = new Pen(s.Stroke, 1.8) { LineJoin = PenLineJoin.Round };
+            var pen = new Pen(s.Stroke, Math.Max(1, s.Thickness)) { LineJoin = PenLineJoin.Round };
             pen.Freeze();
             var geo = new StreamGeometry();
             var started = false;

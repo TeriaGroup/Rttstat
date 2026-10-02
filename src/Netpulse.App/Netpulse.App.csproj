@@ -11,6 +11,7 @@
     <ApplicationIcon>Assets\rttstat.ico</ApplicationIcon>
     <RootNamespace>Netpulse.App</RootNamespace>
     <AssemblyName>Rttstat</AssemblyName>
+    <Version>0.2.0</Version>
     <PublishReadyToRun>false</PublishReadyToRun>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>

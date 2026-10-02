@@ -207,6 +207,14 @@
     <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
     <Setter Property="Padding" Value="8,6"/>
     <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    <Setter Property="ContentTemplate">
+      <Setter.Value>
+        <DataTemplate>
+          <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="{StaticResource TextBrush}"/>
+        </DataTemplate>
+      </Setter.Value>
+    </Setter>
   </Style>
   <Style TargetType="DataGridCell">
     <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>

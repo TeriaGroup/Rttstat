@@ -14,7 +14,6 @@ public sealed class RouteEngine : BackgroundService
     private readonly ISettingsProvider _settings;
     private readonly ILogger<RouteEngine> _log;
     private readonly Dictionary<int, HopAccumulator> _acc = [];
-    private readonly Queue<List<double?>> _heat = new();
     private List<string> _lastIps = [];
     private int _knownHops = 8;
     private Guid _targetId;
@@ -32,7 +31,6 @@ public sealed class RouteEngine : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            var interval = Math.Clamp(_profiles.Active.PingIntervalMs, 500, 10_000);
             try
             {
                 if (!_hub.Paused)
@@ -47,7 +45,7 @@ public sealed class RouteEngine : BackgroundService
                 _log.LogWarning(ex, "Route round failed");
             }
 
-            try { await Task.Delay(interval, stoppingToken); }
+            try { await Task.Delay(TimeSpan.FromSeconds(8), stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
     }
@@ -55,15 +53,14 @@ public sealed class RouteEngine : BackgroundService
     private async Task RoundAsync(CancellationToken ct)
     {
         var profile = _profiles.Active;
-        var target = profile.EnabledTargets.FirstOrDefault(t => t.Role == TargetRole.External)
-                     ?? profile.EnabledTargets.FirstOrDefault(t => t.Role == TargetRole.Dns)
-                     ?? profile.EnabledTargets.FirstOrDefault();
+        var wanted = _hub.TraceTarget;
+        if (wanted is null) return;
+        var target = profile.Targets.FirstOrDefault(t => t.Id == wanted && t.Enabled && !string.IsNullOrWhiteSpace(t.Host));
         if (target is null) return;
         if (target.Id != _targetId)
         {
             _targetId = target.Id;
             _acc.Clear();
-            _heat.Clear();
             _lastIps = [];
             _knownHops = 8;
         }
@@ -92,29 +89,17 @@ public sealed class RouteEngine : BackgroundService
         var maxTtl = Math.Clamp(_settings.Current.MaxTtl, 5, 30);
         var timeout = Math.Clamp(profile.TimeoutMs, 100, 3000);
         var probeTo = Math.Min(_knownHops + 1, maxTtl);
-        var hops = new TtlReply[probeTo];
-        var reached = false;
-
-        for (var ttl = 1; ttl <= probeTo; ttl++)
-        {
-            ct.ThrowIfCancellationRequested();
-            hops[ttl - 1] = await Task.Run(() => IcmpTtl.Ping(ip, (byte)ttl, timeout, _payload), ct);
-            if (hops[ttl - 1] is { Ok: true, TtlExpired: false, Status: "ok" })
-            {
-                reached = true;
-                _knownHops = ttl;
-                break;
-            }
-            if (hops[ttl - 1].TtlExpired)
-                _knownHops = Math.Max(_knownHops, ttl + 1);
-        }
+        var (hops, reached) = await Task.Run(() => Probe(ip, probeTo, timeout, ct), ct);
+        if (reached)
+            _knownHops = hops.Length;
+        else if (hops.Any(h => h.TtlExpired))
+            _knownHops = Math.Max(_knownHops, Array.FindLastIndex(hops, h => h.TtlExpired) + 2);
 
         if (!reached && _knownHops < maxTtl)
             _knownHops = Math.Min(maxTtl, _knownHops + 1);
 
         var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var states = new List<HopLiveState>();
-        var heatCol = new List<double?>();
         var ips = new List<string>();
 
         for (var i = 0; i < hops.Length; i++)
@@ -148,7 +133,6 @@ public sealed class RouteEngine : BackgroundService
                 Spark = st.spark
             };
             states.Add(hopState);
-            heatCol.Add(h.RttMs);
             _hub.EmitRoute(new RouteSample
             {
                 Ts = ts,
@@ -164,28 +148,48 @@ public sealed class RouteEngine : BackgroundService
 
         var destLoss = states.Count == 0 ? 100 : states[^1].LossPercent;
         foreach (var s in states)
-            s.IntermediateOnlyLoss = s.LossPercent >= 50 && destLoss < 20 && s.Hop < states.Count;
+            s.IntermediateOnlyLoss = PathDiagnosis.IsIcmpLimited(destLoss, s.LossPercent, s.Hop == states.Count, reached);
 
         if (RoutePolicy.IsRouteChange(_lastIps, ips) && _lastIps.Count > 0)
             _hub.EmitEvent(EventLevel.Warn, EventCategory.Route, "Route changed");
         _lastIps = ips;
 
-        _heat.Enqueue(heatCol);
-        while (_heat.Count > 60) _heat.Dequeue();
-
         if (_settings.Current.ReverseDns)
             _ = ResolveNamesAsync(states);
 
-        var heat = Transpose(_heat);
         _hub.PublishRoute(new RouteSnapshot
         {
             TargetId = target.Id,
             TargetHost = target.Host,
             Tracing = !reached,
             Banner = reached ? "" : "tracing",
-            Hops = states,
-            Heat = heat
+            Hops = states
         });
+    }
+
+    private (TtlReply[] Hops, bool Reached) Probe(IPAddress ip, int probeTo, int timeout, CancellationToken ct)
+    {
+        var hops = new TtlReply[probeTo];
+        var handle = IcmpTtl.OpenHandle();
+        try
+        {
+            if (!IcmpTtl.HandleOk(handle))
+                return ([new TtlReply(false, false, "", null, "icmp-handle")], false);
+
+            for (var ttl = 1; ttl <= probeTo; ttl++)
+            {
+                ct.ThrowIfCancellationRequested();
+                hops[ttl - 1] = IcmpTtl.Ping(handle, ip, (byte)ttl, timeout, _payload);
+                if (hops[ttl - 1] is { Ok: true, TtlExpired: false, Status: "ok" })
+                    return (hops[..ttl], true);
+            }
+        }
+        finally
+        {
+            IcmpTtl.CloseHandle(handle);
+        }
+
+        return (hops, false);
     }
 
     private static async Task ResolveNamesAsync(List<HopLiveState> hops)
@@ -200,22 +204,6 @@ public sealed class RouteEngine : BackgroundService
             }
             catch { /* ignore */ }
         }
-    }
-
-    private static IReadOnlyList<IReadOnlyList<double?>> Transpose(Queue<List<double?>> cols)
-    {
-        var list = cols.ToList();
-        if (list.Count == 0) return [];
-        var rows = list.Max(c => c.Count);
-        var heat = new List<IReadOnlyList<double?>>();
-        for (var r = 0; r < rows; r++)
-        {
-            var row = new double?[list.Count];
-            for (var c = 0; c < list.Count; c++)
-                row[c] = r < list[c].Count ? list[c][r] : null;
-            heat.Add(row);
-        }
-        return heat;
     }
 
     private void Publish(Target target, bool tracing, string banner)
