@@ -10,7 +10,6 @@ public sealed class MonitorLoopService : BackgroundService
     public const int ChartWindowSec = 120;
     private const int ChartPoints = 120;
     private readonly MonitorHub _hub;
-    private readonly IProfileProvider _profiles;
     private readonly ISettingsProvider _settings;
     private readonly ILogger<MonitorLoopService> _log;
     private readonly PingEngine _ping = new();
@@ -28,15 +27,12 @@ public sealed class MonitorLoopService : BackgroundService
 
     public MonitorLoopService(
         MonitorHub hub,
-        IProfileProvider profiles,
         ISettingsProvider settings,
         ILogger<MonitorLoopService> log)
     {
         _hub = hub;
-        _profiles = profiles;
         _settings = settings;
         _log = log;
-        _profiles.Changed += () => { };
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,9 +40,10 @@ public sealed class MonitorLoopService : BackgroundService
         _hub.EmitEvent(EventLevel.Info, EventCategory.App, "Monitor started");
         PreferPhysicalAdapter();
         ApplyGateway();
+        var next = DateTime.UtcNow;
         while (!stoppingToken.IsCancellationRequested)
         {
-            var profile = _profiles.Active;
+            var profile = Monitor();
             var interval = Math.Clamp(profile.PingIntervalMs, 200, 60_000);
             try
             {
@@ -62,13 +59,20 @@ public sealed class MonitorLoopService : BackgroundService
                 _hub.EmitEvent(EventLevel.Error, EventCategory.Ping, "Monitor tick failed: " + ex.Message);
             }
 
-            try
+            next = next.AddMilliseconds(interval);
+            var wait = next - DateTime.UtcNow;
+            if (wait < TimeSpan.Zero)
+                next = DateTime.UtcNow;
+            else
             {
-                await Task.Delay(interval, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
+                try
+                {
+                    await Task.Delay(wait, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
 
@@ -118,8 +122,16 @@ public sealed class MonitorLoopService : BackgroundService
         }
 
         var targets = profile.EnabledTargets.Take(32).ToList();
-        var tasks = targets.Select(t => ProbeTargetAsync(profile, t, nowMs, ct)).ToList();
-        await Task.WhenAll(tasks);
+        using var round = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        round.CancelAfter(Math.Clamp(profile.TimeoutMs, 200, 5_000));
+        var tasks = targets.Select(t => ProbeTargetAsync(profile, t, nowMs, round.Token, ct)).ToList();
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+        }
 
         foreach (var t in targets)
         {
@@ -139,15 +151,15 @@ public sealed class MonitorLoopService : BackgroundService
             st.StdDevMs = s5.StdDev;
             st.SessionLoss = st.Sent == 0 ? 0 : (st.Sent - st.Recv) * 100.0 / st.Sent;
             st.Mos = RoutePolicy.MosEstimate(st.AvgRtt5m ?? st.LastRttMs ?? 0, st.Loss1m);
-            st.Spark = w.Spark(nowMs, TimeSpan.FromSeconds(ChartWindowSec), 40, true);
-            st.LossSpark = w.Spark(nowMs, TimeSpan.FromSeconds(ChartWindowSec), 40, false);
+            st.Spark = w.Spark(nowMs, TimeSpan.FromSeconds(ChartWindowSec), ChartWindowSec, true);
+            st.LossSpark = w.Spark(nowMs, TimeSpan.FromSeconds(ChartWindowSec), ChartWindowSec, false);
         }
 
         var liveList = targets.Select(t => _live.GetValueOrDefault(t.Id)).Where(x => x is not null).Cast<TargetLiveState>().ToList();
         var prev = _outages.Current;
         var outage = _outages.OnTick(profile, nic.Up, liveList, nic.Id);
-        if (outage is not null && (prev is null || prev.Id != outage.Id || prev.IsOpen != outage.IsOpen || prev.EndedAtUtc != outage.EndedAtUtc))
-            _hub.EmitOutage(outage);
+        if (OutageTracker.ShouldEmit(prev, outage, _outages.Current))
+            _hub.EmitOutage(outage!);
 
         if (outage is { IsOpen: true })
             _onlineSince = DateTimeOffset.UtcNow;
@@ -156,7 +168,7 @@ public sealed class MonitorLoopService : BackgroundService
         RaiseThresholds(profile, liveList);
     }
 
-    private async Task ProbeTargetAsync(Profile profile, Target target, long nowMs, CancellationToken ct)
+    private async Task ProbeTargetAsync(Profile profile, Target target, long nowMs, CancellationToken probeCt, CancellationToken appCt)
     {
         if (!_live.TryGetValue(target.Id, out var state))
         {
@@ -171,7 +183,15 @@ public sealed class MonitorLoopService : BackgroundService
         }
 
         var forceTcp = state.UsingTcp || state.ConsecutiveIcmpErrors >= 10;
-        var result = await _ping.ProbeAsync(target, profile, forceTcp, _settings.Current.PreferIpv6, ct);
+        (bool Ok, double? Rtt, string Status, string Resolved, bool IcmpError) result;
+        try
+        {
+            result = await _ping.ProbeAsync(target, profile, forceTcp, _settings.Current.PreferIpv6, probeCt);
+        }
+        catch (OperationCanceledException) when (!appCt.IsCancellationRequested)
+        {
+            result = (false, null, "timeout", state.ResolvedIp, false);
+        }
         if (result.IcmpError)
         {
             state.ConsecutiveIcmpErrors++;
@@ -321,21 +341,21 @@ public sealed class MonitorLoopService : BackgroundService
     {
         var s = _settings.Current;
         var adapter = GatewayDetector.PickDefault(s.SelectedAdapterId, s.AdapterUserChosen);
-        if (adapter is null || string.IsNullOrEmpty(adapter.Gateway)) return;
-        var changed = false;
-        foreach (var p in _profiles.All)
-        {
-            var gw = p.Targets.FirstOrDefault(t => t.Role == TargetRole.Gateway);
-            if (gw is null) continue;
-            if (gw.Host != adapter.Gateway)
-            {
-                gw.Host = adapter.Gateway;
-                gw.Enabled = true;
-                changed = true;
-                _hub.EmitEvent(EventLevel.Info, EventCategory.Adapter, $"Gateway set to {adapter.Gateway}");
-            }
-        }
-        if (changed) _profiles.Save();
+        if (adapter is null || string.IsNullOrEmpty(adapter.Gateway) || s.Monitor is null) return;
+        s.Monitor.Targets ??= [];
+        var gw = s.Monitor.Targets.FirstOrDefault(t => t.Role == TargetRole.Gateway);
+        if (gw is null || gw.Host == adapter.Gateway) return;
+        gw.Host = adapter.Gateway;
+        gw.Enabled = true;
+        _settings.Save();
+        _hub.EmitEvent(EventLevel.Info, EventCategory.Adapter, $"Gateway set to {adapter.Gateway}");
+    }
+
+    private Profile Monitor()
+    {
+        var monitor = _settings.Current.Monitor;
+        monitor.Targets ??= [];
+        return monitor;
     }
 
     public override void Dispose()

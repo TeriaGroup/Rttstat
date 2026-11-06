@@ -81,6 +81,19 @@ public sealed class OutageTracker
         Current = null;
     }
 
+    /// <summary>
+    /// Decides if a returned outage must be pushed to listeners.
+    /// OnTick may mutate and return the same instance it returned while open,
+    /// so reference equality alone cannot tell "opened" from "just closed".
+    /// </summary>
+    public static bool ShouldEmit(Outage? previous, Outage? returned, Outage? stored)
+    {
+        if (returned is null) return false;
+        if (previous is null) return true;              // newly opened
+        if (!ReferenceEquals(previous, returned)) return true;   // replaced by another instance
+        return stored is null;                          // same instance and tracker no longer holds it = just closed
+    }
+
     private static Outage Open(Profile profile, string adapterId, OutageCause cause, string detail) => new()
     {
         StartedAtUtc = DateTimeOffset.UtcNow,
