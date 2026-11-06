@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local release artifacts
+Rttstat-portable-win-x64.zip
