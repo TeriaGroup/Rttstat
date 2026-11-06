@@ -66,6 +66,17 @@ public sealed class Sparkline : FrameworkElement
         set => SetValue(ShowGridProperty, value);
     }
 
+    protected override Size MeasureOverride(Size available)
+    {
+        var w = available.Width;
+        if (double.IsNaN(w) || double.IsInfinity(w) || w < 8)
+            w = double.IsNaN(Width) || Width <= 0 ? 90 : Width;
+        var h = available.Height;
+        if (double.IsNaN(h) || double.IsInfinity(h) || h < 8)
+            h = double.IsNaN(Height) || Height <= 0 ? 22 : Height;
+        return new Size(w, h);
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
         var values = Values;
@@ -79,19 +90,27 @@ public sealed class Sparkline : FrameworkElement
         var plotW = Math.Max(1, ActualWidth - left - right);
         var plotH = Math.Max(1, ActualHeight - top - bottom);
 
+        var finite = values?.Where(v => !double.IsNaN(v) && !double.IsInfinity(v)).ToList() ?? [];
         double min = 0, max = 1;
-        if (values is { Count: > 0 })
+        if (finite.Count > 0)
         {
-            min = values.Min();
-            max = values.Max();
+            min = finite.Min();
+            max = finite.Max();
         }
         if (FloorZero) min = Math.Min(min, 0);
-        if (Math.Abs(max - min) < 1e-9)
+        if (double.IsNaN(min) || double.IsNaN(max) || Math.Abs(max - min) < 1e-9)
         {
+            if (double.IsNaN(min)) min = 0;
             max = min + (FloorZero ? 1 : Math.Max(1, Math.Abs(min) * 0.1 + 1));
             if (FloorZero) min = 0;
         }
         Nice(min, max, out min, out max, out var step);
+        if (double.IsNaN(min) || double.IsNaN(max) || double.IsNaN(step) || step <= 0)
+        {
+            min = 0;
+            max = 1;
+            step = 1;
+        }
 
         if (showGrid)
         {
@@ -125,16 +144,25 @@ public sealed class Sparkline : FrameworkElement
             }
         }
 
-        if (values is null || values.Count < 2) return;
+        if (values is null || finite.Count < 2 || max <= min) return;
         var geo = new StreamGeometry();
         using (var ctx = geo.Open())
         {
+            var started = false;
             for (var i = 0; i < values.Count; i++)
             {
+                var value = values[i];
+                if (double.IsNaN(value) || double.IsInfinity(value)) continue;
                 var x = left + i / (double)(values.Count - 1) * plotW;
-                var y = top + plotH - (values[i] - min) / (max - min) * plotH;
-                if (i == 0) ctx.BeginFigure(new Point(x, y), false, false);
-                else ctx.LineTo(new Point(x, y), true, false);
+                var y = top + plotH - (value - min) / (max - min) * plotH;
+                if (double.IsNaN(x) || double.IsNaN(y)) continue;
+                var p = new Point(x, y);
+                if (!started)
+                {
+                    ctx.BeginFigure(p, false, false);
+                    started = true;
+                }
+                else ctx.LineTo(p, true, false);
             }
         }
         geo.Freeze();

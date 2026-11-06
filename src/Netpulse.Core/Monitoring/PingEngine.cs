@@ -25,7 +25,7 @@ public sealed class PingEngine : IDisposable
             if (IPAddress.TryParse(host, out var parsed))
                 ip = IpChoice.Unwrap(parsed);
             else
-                ip = await ResolveAsync(target, preferIpv6, ct);
+                ip = await ResolveAsync(target, preferIpv6, profile.TimeoutMs, ct);
         }
         catch (Exception ex)
         {
@@ -43,10 +43,17 @@ public sealed class PingEngine : IDisposable
             {
                 var opts = new PingOptions(profile.Ttl, true);
                 var payload = new byte[Math.Clamp(profile.PayloadBytes, 0, 1472)];
-                var reply = await _ping.SendPingAsync(ip, TimeSpan.FromMilliseconds(profile.TimeoutMs), payload, opts, ct);
+                using var ping = new Ping();
+                using var pingCt = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                pingCt.CancelAfter(Math.Clamp(profile.TimeoutMs, 200, 5_000));
+                var reply = await ping.SendPingAsync(ip, TimeSpan.FromMilliseconds(profile.TimeoutMs), payload, opts, pingCt.Token);
                 if (reply.Status == IPStatus.Success)
                     return (true, reply.RoundtripTime, "ok", resolved, false);
                 return (false, null, reply.Status.ToString(), resolved, false);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                return (false, null, "timeout", resolved, false);
             }
             catch (OperationCanceledException)
             {
@@ -91,7 +98,7 @@ public sealed class PingEngine : IDisposable
         }
     }
 
-    private async Task<IPAddress?> ResolveAsync(Target target, bool preferIpv6, CancellationToken ct)
+    private async Task<IPAddress?> ResolveAsync(Target target, bool preferIpv6, int timeoutMs, CancellationToken ct)
     {
         var every = Math.Max(0, target.ResolveDnsEverySec);
         if (every > 0 && _dns.TryGetValue(target.Id, out var cached)
@@ -99,11 +106,22 @@ public sealed class PingEngine : IDisposable
             && DateTimeOffset.UtcNow - cached.At < TimeSpan.FromSeconds(every))
             return cached.Ip;
 
-        var entry = await Dns.GetHostEntryAsync(IpChoice.NormalizeHost(target.Host), ct);
-        var ip = IpChoice.Prefer(null, entry.AddressList, preferIpv6);
-        if (ip is not null)
-            _dns[target.Id] = (ip, DateTimeOffset.UtcNow, preferIpv6);
-        return ip;
+        using var dns = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        dns.CancelAfter(Math.Clamp(timeoutMs, 200, 5_000));
+        try
+        {
+            var entry = await Dns.GetHostEntryAsync(IpChoice.NormalizeHost(target.Host), dns.Token);
+            var ip = IpChoice.Prefer(null, entry.AddressList, preferIpv6);
+            if (ip is not null)
+                _dns[target.Id] = (ip, DateTimeOffset.UtcNow, preferIpv6);
+            return ip;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            if (_dns.TryGetValue(target.Id, out var stale))
+                return stale.Ip;
+            return null;
+        }
     }
 
     public void Dispose() => _ping.Dispose();

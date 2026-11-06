@@ -39,6 +39,8 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private void OnTraySettingCommitted(object sender, RoutedEventArgs e) => _settings.Save();
+
     private void OnClosing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         e.Cancel = true;

@@ -11,7 +11,6 @@ public sealed class SpeedtestService : BackgroundService
     private readonly LibreSpeedClient _client;
     private readonly MonitorHub _hub;
     private readonly ISettingsProvider _settings;
-    private readonly IProfileProvider _profiles;
     private readonly ILogger<SpeedtestService> _log;
     private CancellationTokenSource? _runCts;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -21,13 +20,11 @@ public sealed class SpeedtestService : BackgroundService
         HttpClient http,
         MonitorHub hub,
         ISettingsProvider settings,
-        IProfileProvider profiles,
         ILogger<SpeedtestService> log)
     {
         _client = new LibreSpeedClient(http);
         _hub = hub;
         _settings = settings;
-        _profiles = profiles;
         _log = log;
     }
 
@@ -62,7 +59,7 @@ public sealed class SpeedtestService : BackgroundService
                 }
                 _hub.Publish(CloneWithSpeed(cur, p.Phase, p.LiveMbps, cur.LastSpeedtest));
             });
-            var result = await _client.RunAsync(cfg, _profiles.Active.Id, _hub.Current.AdapterId, progress, _runCts.Token);
+            var result = await _client.RunAsync(cfg, _settings.Current.Monitor.Id, _hub.Current.AdapterId, progress, _runCts.Token);
             result.IdlePingMs = idle;
             result.DownLoadPingMs = downLoad.Count == 0 ? null : downLoad.Average();
             result.UpLoadPingMs = upLoad.Count == 0 ? null : upLoad.Average();

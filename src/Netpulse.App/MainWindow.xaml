@@ -68,6 +68,7 @@
           <Button Content="ya.ru" Command="{Binding AddPresetCommand}" CommandParameter="ya.ru" Margin="0,0,6,6" Padding="8,4"/>
           <Button Content="google.com" Command="{Binding AddPresetCommand}" CommandParameter="google.com" Margin="0,0,6,6" Padding="8,4"/>
           <ComboBox Width="140" ItemsSource="{Binding BucketOptions}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding Period}" Margin="8,0,8,6"/>
+          <Button Content="{loc:L Key=chart.all}" Command="{Binding ShowAllChartsCommand}" Margin="8,0,8,6"/>
           <Button Content="{loc:L Key=route.copy}" Command="{Binding CopyReportCommand}" Margin="0,0,0,6"/>
         </WrapPanel>
         <TextBlock DockPanel.Dock="Top" Text="{Binding DiagnosisText}" FontWeight="SemiBold" Margin="0,0,0,4"/>
@@ -79,29 +80,61 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate>
-              <StackPanel Orientation="Horizontal" Margin="0,0,14,4">
+              <StackPanel Orientation="Horizontal" Margin="0,0,14,4" Opacity="{Binding Opacity}">
                 <Border Width="12" Height="4" Background="{Binding Stroke}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
               </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <UniformGrid DockPanel.Dock="Top" Columns="2" Height="200" Margin="0,0,0,8">
-          <Border Style="{StaticResource Card}" Padding="8" Margin="0,0,6,0">
-            <DockPanel>
-              <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=chart.ping}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6"/>
-              <ctrl:SeriesChart Series="{Binding PingSeries}" WindowSeconds="{Binding ChartWindowSeconds}" UnitSuffix="{Binding PingUnit}"/>
-            </DockPanel>
-          </Border>
-          <Border Style="{StaticResource Card}" Padding="8" Margin="6,0,0,0">
-            <DockPanel>
-              <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=chart.loss}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6"/>
-              <ctrl:SeriesChart Series="{Binding LossSeries}" WindowSeconds="{Binding ChartWindowSeconds}" UnitSuffix=" %"/>
-            </DockPanel>
-          </Border>
-        </UniformGrid>
-        <DataGrid DockPanel.Dock="Top" Height="168" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False" IsReadOnly="True" RowHeight="28" EnableRowVirtualization="False" Margin="0,0,0,8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="2*" MinHeight="110"/>
+            <RowDefinition Height="6"/>
+            <RowDefinition Height="*" MinHeight="90"/>
+            <RowDefinition Height="6"/>
+            <RowDefinition Height="*" MinHeight="90"/>
+          </Grid.RowDefinitions>
+          <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" MinWidth="180"/>
+              <ColumnDefinition Width="6"/>
+              <ColumnDefinition Width="*" MinWidth="180"/>
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource Card}" Padding="8" Margin="0,0,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=chart.ping}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6"/>
+                <ctrl:SeriesChart Series="{Binding PingSeries}" WindowSeconds="{Binding ChartWindowSeconds}" UnitSuffix="{Binding PingUnit}"/>
+              </DockPanel>
+            </Border>
+            <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#3D424C"/>
+            <Border Grid.Column="2" Style="{StaticResource Card}" Padding="8">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=chart.loss}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6"/>
+                <ctrl:SeriesChart Series="{Binding LossSeries}" WindowSeconds="{Binding ChartWindowSeconds}" UnitSuffix=" %"/>
+              </DockPanel>
+            </Border>
+          </Grid>
+          <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Background="#3D424C"/>
+          <DataGrid Grid.Row="2" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False" IsReadOnly="True" RowHeight="28" EnableRowVirtualization="False" Margin="0,0,0,0">
           <DataGrid.Columns>
+            <DataGridTemplateColumn Width="36">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <Button Content="●" Padding="4,0" ToolTip="{loc:L Key=chart.focus.tip}"
+                          Background="{Binding IsFocused, Converter={x:Static vm:FocusBrush.Instance}}"
+                          Command="{Binding DataContext.FocusChartCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Width="36" Header="{loc:L Key=col.onchart}">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <CheckBox IsChecked="{Binding ShowOnChart, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
             <DataGridTemplateColumn Width="28">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
@@ -125,19 +158,28 @@
             <DataGridTextColumn Header="{loc:L Key=col.loss5}" Binding="{Binding Loss}" MinWidth="140" Width="150"/>
             <DataGridTextColumn Header="{loc:L Key=col.sent}" Binding="{Binding SentText}" MinWidth="110" Width="120"/>
             <DataGridTextColumn Header="{loc:L Key=col.recv}" Binding="{Binding RecvText}" MinWidth="100" Width="110"/>
-            <DataGridTemplateColumn Header="{loc:L Key=col.graph}" Width="100">
+            <DataGridTemplateColumn Header="{loc:L Key=col.graph}" Width="160" MinWidth="80">
+              <DataGridTemplateColumn.CellStyle>
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                  <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                  <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                  <Setter Property="Padding" Value="4,3"/>
+                </Style>
+              </DataGridTemplateColumn.CellStyle>
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
-                  <ctrl:Sparkline Height="22" Width="90" Values="{Binding Spark}" Stroke="{Binding Swatch}" ShowGrid="False" WindowSeconds="120"/>
+                  <ctrl:Sparkline HorizontalAlignment="Stretch" VerticalAlignment="Stretch" MinHeight="18" Values="{Binding Spark}" Stroke="{Binding Swatch}" ShowGrid="False" WindowSeconds="120"/>
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
           </DataGrid.Columns>
         </DataGrid>
-        <Grid>
+          <GridSplitter Grid.Row="3" Height="6" HorizontalAlignment="Stretch" Background="#3D424C"/>
+        <Grid Grid.Row="4">
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*"/>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="2*" MinWidth="200"/>
+            <ColumnDefinition Width="6"/>
+            <ColumnDefinition Width="*" MinWidth="160"/>
           </Grid.ColumnDefinitions>
           <DockPanel Margin="0,0,8,0">
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
@@ -166,13 +208,15 @@
             </DataGrid.Columns>
           </DataGrid>
           </DockPanel>
-          <DataGrid Grid.Column="1" ItemsSource="{Binding PeriodOutages}" AutoGenerateColumns="False" IsReadOnly="True">
+          <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#3D424C"/>
+          <DataGrid Grid.Column="2" ItemsSource="{Binding PeriodOutages}" AutoGenerateColumns="False" IsReadOnly="True">
             <DataGrid.Columns>
               <DataGridTextColumn Header="{loc:L Key=col.start}" Binding="{Binding Start}" Width="*"/>
               <DataGridTextColumn Header="{loc:L Key=col.dur}" Binding="{Binding Duration}" Width="120"/>
               <DataGridTextColumn Header="{loc:L Key=col.cause}" Binding="{Binding Cause}" Width="*"/>
             </DataGrid.Columns>
           </DataGrid>
+        </Grid>
         </Grid>
       </DockPanel>
 
@@ -182,21 +226,14 @@
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <DockPanel Margin="0,0,12,0">
-          <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=set.profiles}" FontSize="16" Margin="0,0,0,8"/>
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <ComboBox Width="160" ItemsSource="{Binding Profiles}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedProfile}"/>
-            <Button Content="{loc:L Key=activate}" Command="{Binding ActivateProfileCommand}" Margin="8,0,0,0"/>
-            <Button Content="{loc:L Key=save}" Command="{Binding SaveProfileCommand}" Margin="8,0,0,0"/>
-            <Button Content="{loc:L Key=duplicate}" Command="{Binding DuplicateProfileCommand}" Margin="8,0,0,0"/>
-            <Button Content="{loc:L Key=delete}" Command="{Binding DeleteProfileCommand}" Margin="8,0,0,0"/>
-          </StackPanel>
+          <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=set.targets}" FontSize="16" Margin="0,0,0,8"/>
           <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
             <TextBox Width="120" Text="{Binding NewTargetName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
             <TextBox Width="160" Text="{Binding NewTargetHost, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
             <Button Content="{loc:L Key=add.target}" Command="{Binding AddTargetCommand}" Margin="0,0,8,0"/>
             <Button Content="{loc:L Key=detect.gw}" Command="{Binding DetectGatewayCommand}"/>
           </StackPanel>
-          <DataGrid ItemsSource="{Binding SelectedProfile.Targets}" AutoGenerateColumns="False" CanUserAddRows="False">
+          <DataGrid ItemsSource="{Binding EditableTargets}" AutoGenerateColumns="False" CanUserAddRows="False">
             <DataGrid.Columns>
               <DataGridCheckBoxColumn Header="{loc:L Key=col.on}" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
               <DataGridTextColumn Header="{loc:L Key=col.name}" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
@@ -212,12 +249,40 @@
             <TextBlock Text="{loc:L Key=set.adapter}" Margin="0,0,0,4"/>
             <ComboBox ItemsSource="{Binding Adapters}" SelectedItem="{Binding SelectedAdapter}" DisplayMemberPath="Label" Margin="0,0,0,8"/>
             <CheckBox Content="{loc:L Key=set.autostart}" IsChecked="{Binding StartWithWindowsTray}" Margin="0,0,0,4"/>
-            <CheckBox Content="{loc:L Key=set.hud}" IsChecked="{Binding Settings.Tray.HudEnabled}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.mute}" IsChecked="{Binding Settings.Notifications.MuteAll}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.sound}" IsChecked="{Binding Settings.AlertSound}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.ipv6}" IsChecked="{Binding PreferIpv6}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.toast.outage}" IsChecked="{Binding Settings.Notifications.OnOutageStart}" Margin="0,0,0,4"/>
             <CheckBox Content="{loc:L Key=set.toast.th}" IsChecked="{Binding Settings.Notifications.OnPingThreshold}" Margin="0,0,0,8"/>
+            <TextBlock Text="{loc:L Key=set.icon}" FontSize="16" Margin="0,12,0,8"/>
+            <TextBlock Text="{loc:L Key=set.icon.hint}" Foreground="#9AA0A6" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <CheckBox Content="{loc:L Key=set.icon.color}" IsChecked="{Binding Settings.Tray.Colorize}" Margin="0,0,0,8"/>
+            <CheckBox Content="{loc:L Key=set.hud}" IsChecked="{Binding Settings.Tray.HudEnabled}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.hidefs}" IsChecked="{Binding Settings.Tray.HideHudInFullscreen}" Margin="0,0,0,8"/>
+
+            <TextBlock Text="{loc:L Key=set.menu}" FontSize="16" Margin="0,4,0,8"/>
+            <CheckBox Content="{loc:L Key=set.flyout}" IsChecked="{Binding Settings.Tray.FlyoutEnabled}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.left}" IsChecked="{Binding Settings.Tray.FlyoutOpenOnLeftClick}" Margin="0,0,0,8"/>
+            <TextBlock Text="{loc:L Key=set.menu.width}" Margin="0,0,0,4"/>
+            <DockPanel Margin="0,0,0,4">
+              <TextBlock DockPanel.Dock="Right" Width="42" VerticalAlignment="Center" Margin="8,0,0,0"
+                         Text="{Binding Settings.Tray.FlyoutWidth, StringFormat=0}"/>
+              <Slider Minimum="320" Maximum="780" TickFrequency="20"
+                      Value="{Binding Settings.Tray.FlyoutWidth, UpdateSourceTrigger=PropertyChanged}"
+                      LostMouseCapture="OnTraySettingCommitted"/>
+            </DockPanel>
+            <TextBlock Text="{loc:L Key=set.menu.hint}" Foreground="#9AA0A6" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <CheckBox Content="{loc:L Key=set.menu.ping}" IsChecked="{Binding Settings.Tray.ShowPing}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.loss}" IsChecked="{Binding Settings.Tray.ShowLoss}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.rate}" IsChecked="{Binding Settings.Tray.ShowThroughput}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.jitter}" IsChecked="{Binding Settings.Tray.FlyoutShowJitter}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.chart}" IsChecked="{Binding Settings.Tray.FlyoutShowChart}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.targets}" IsChecked="{Binding Settings.Tray.FlyoutShowTargets}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.uptime}" IsChecked="{Binding Settings.Tray.ShowOutage}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.adapter}" IsChecked="{Binding Settings.Tray.FlyoutShowAdapter}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.speed}" IsChecked="{Binding Settings.Tray.FlyoutShowSpeed}" Margin="0,0,0,4"/>
+            <CheckBox Content="{loc:L Key=set.menu.buttons}" IsChecked="{Binding Settings.Tray.FlyoutShowButtons}" Margin="0,0,0,8"/>
+
             <TextBlock Text="{loc:L Key=speed.title}" Margin="0,0,0,4"/>
             <TextBox Text="{Binding Settings.LibreSpeed.ServerBaseUrl, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

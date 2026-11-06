@@ -9,6 +9,7 @@ public sealed class ChartSeries
     public string Name { get; init; } = "";
     public Brush Stroke { get; init; } = Brushes.White;
     public double Thickness { get; init; } = 1.6;
+    public double Opacity { get; init; } = 1;
     public IReadOnlyList<double> Values { get; init; } = [];
 }
 
@@ -55,10 +56,7 @@ public sealed class SeriesChart : FrameworkElement
 
         double min = 0, max = 1;
         if (finite.Count > 0)
-        {
-            min = Math.Min(0, finite.Min());
             max = Math.Max(finite.Max(), 1);
-        }
         Nice(min, max, out min, out max, out var step);
 
         var gridPen = new Pen(new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), 1);
@@ -79,6 +77,7 @@ public sealed class SeriesChart : FrameworkElement
         }
 
         var now = DateTime.Now;
+        now = new DateTime(now.Ticks - now.Ticks % TimeSpan.TicksPerSecond, now.Kind);
         var span = TimeSpan.FromSeconds(Math.Max(1, WindowSeconds));
         for (var i = 0; i <= 4; i++)
         {
@@ -95,11 +94,12 @@ public sealed class SeriesChart : FrameworkElement
             dc.DrawText(tft, new Point(tx, top + plotH + 4));
         }
 
-        foreach (var s in series)
+        foreach (var s in series.OrderBy(s => s.Opacity))
         {
             if (s.Values.Count == 0) continue;
             var pen = new Pen(s.Stroke, Math.Max(1, s.Thickness)) { LineJoin = PenLineJoin.Round };
             pen.Freeze();
+            dc.PushOpacity(Math.Clamp(s.Opacity, 0.12, 1));
             var geo = new StreamGeometry();
             var started = false;
             var count = s.Values.Count;
@@ -109,11 +109,8 @@ public sealed class SeriesChart : FrameworkElement
                 {
                     var value = s.Values[i];
                     if (double.IsNaN(value))
-                    {
-                        started = false;
                         continue;
-                    }
-                    var x = count == 1 ? left + plotW : left + i / (double)(count - 1) * plotW;
+                    var x = left + (count <= 1 ? 1 : i / (double)(count - 1)) * plotW;
                     var y = top + plotH - (value - min) / (max - min) * plotH;
                     var p = new Point(x, y);
                     if (!started)
@@ -128,6 +125,7 @@ public sealed class SeriesChart : FrameworkElement
             }
             geo.Freeze();
             dc.DrawGeometry(null, pen, geo);
+            dc.Pop();
         }
     }
 

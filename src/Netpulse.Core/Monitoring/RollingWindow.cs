@@ -5,6 +5,8 @@ public sealed class RollingWindow
     private readonly Queue<(long Ts, bool Ok, double? Rtt)> _items = new();
     private readonly object _gate = new();
     private readonly long _keepMs;
+    private double? _lastOkRtt;
+    private long _lastOkRttTs = long.MaxValue;
 
     public RollingWindow(TimeSpan keep)
     {
@@ -15,6 +17,11 @@ public sealed class RollingWindow
     {
         lock (_gate)
         {
+            if (ok && rtt is { } held)
+            {
+                _lastOkRtt = held;
+                _lastOkRttTs = ts;
+            }
             _items.Enqueue((ts, ok, rtt));
             Trim(ts);
         }
@@ -86,29 +93,66 @@ public sealed class RollingWindow
         lock (_gate)
         {
             Trim(now);
-            var from = now - (long)window.TotalMilliseconds;
-            var selected = _items.Where(i => i.Ts >= from).ToList();
-            if (selected.Count == 0) return [];
-            var step = Math.Max(1, selected.Count / maxPoints);
-            var list = new List<double>();
-            for (var i = 0; i < selected.Count; i += step)
+            _ = maxPoints;
+            var points = Math.Max(2, (int)window.TotalSeconds);
+            const long bucket = 1000;
+            var closedEnd = now / bucket * bucket;
+            var from = closedEnd - points * bucket;
+            double? seed = null;
+            foreach (var item in _items)
             {
-                var item = selected[i];
-                if (rttNotLoss) list.Add(item.Ok ? item.Rtt ?? 0 : 0);
+                if (item.Ts >= from) break;
+                if (item.Ok && item.Rtt is { } prior) seed = prior;
+            }
+            if (seed is null && _lastOkRttTs < from)
+                seed = _lastOkRtt;
+            var selected = _items.Where(i => i.Ts >= from && i.Ts < closedEnd).ToList();
+            var values = new double[points];
+            var sum = new double[points];
+            var ok = new int[points];
+            var fail = new int[points];
+            foreach (var item in selected)
+            {
+                var idx = (int)((item.Ts - from) / bucket);
+                if (idx < 0 || idx >= points) continue;
+                if (item.Ok && item.Rtt is { } r)
+                {
+                    sum[idx] += r;
+                    ok[idx]++;
+                }
+                else if (!item.Ok)
+                    fail[idx]++;
+            }
+            for (var i = 0; i < points; i++)
+            {
+                if (rttNotLoss)
+                    values[i] = ok[i] == 0 ? double.NaN : sum[i] / ok[i];
                 else
                 {
-                    var start = Math.Max(0, i - 7);
-                    var fail = 0;
-                    var n = 0;
-                    for (var j = start; j <= i; j++)
-                    {
-                        n++;
-                        if (!selected[j].Ok) fail++;
-                    }
-                    list.Add(n == 0 ? 0 : fail * 100.0 / n);
+                    var n = ok[i] + fail[i];
+                    values[i] = n == 0 ? double.NaN : fail[i] * 100.0 / n;
                 }
             }
-            return list;
+            FillForward(values);
+            if (rttNotLoss && seed is { } held)
+            {
+                for (var i = 0; i < values.Length && double.IsNaN(values[i]); i++)
+                    values[i] = held;
+            }
+            return values.ToList();
+        }
+    }
+
+    public static void FillForward(double[] values)
+    {
+        double? last = null;
+        for (var i = 0; i < values.Length; i++)
+        {
+            if (double.IsNaN(values[i]))
+            {
+                if (last is { } held) values[i] = held;
+            }
+            else last = values[i];
         }
     }
 

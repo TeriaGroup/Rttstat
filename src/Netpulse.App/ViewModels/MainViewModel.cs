@@ -22,7 +22,6 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly MonitorHub _hub;
     private readonly ISettingsProvider _settings;
-    private readonly IProfileProvider _profiles;
     private readonly SampleRepository _repo;
     private readonly SpeedtestService _speed;
     private readonly IAppPaths _paths;
@@ -33,14 +32,12 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(
         MonitorHub hub,
         ISettingsProvider settings,
-        IProfileProvider profiles,
         SampleRepository repo,
         SpeedtestService speed,
         IAppPaths paths)
     {
         _hub = hub;
         _settings = settings;
-        _profiles = profiles;
         _repo = repo;
         _speed = speed;
         _paths = paths;
@@ -59,7 +56,7 @@ public sealed partial class MainViewModel : ObservableObject
         ReloadSpeed();
         RefreshStats();
         RefreshAdapters();
-        RefreshProfiles();
+        LoadTargets();
         ModeButtonText = UiLoc.Current["nav.settings"];
         hub.RouteUpdated += r =>
         {
@@ -76,6 +73,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _detailLine = "";
     [ObservableProperty] private string _selectedTitle = "";
     [ObservableProperty] private bool _hasHiddenHops;
+    [ObservableProperty] private Guid? _focusedChartId;
     [ObservableProperty] private string _modeButtonText = "";
     [ObservableProperty] private double _chartWindowSeconds = 120;
     [ObservableProperty] private IReadOnlyList<ChartSeries> _pingSeries = [];
@@ -110,7 +108,6 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _statsSummary = "";
     [ObservableProperty] private string _newTargetHost = "";
     [ObservableProperty] private string _newTargetName = "";
-    [ObservableProperty] private Profile? _selectedProfile;
     [ObservableProperty] private AdapterChoice? _selectedAdapter;
     private bool _suppressAdapter;
     [ObservableProperty] private IReadOnlyList<double> _pingSpark = [];
@@ -134,7 +131,7 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<OutageStatRow> PeriodOutages { get; } = [];
     public ObservableCollection<LogRow> LogRows { get; } = [];
     public ObservableCollection<SpeedtestResult> Speedtests { get; } = [];
-    public ObservableCollection<Profile> Profiles { get; } = [];
+    public ObservableCollection<Target> EditableTargets { get; } = [];
     public ObservableCollection<AdapterChoice> Adapters { get; } = [];
     public ObservableCollection<PingStatRow> StatsPingRows { get; } = [];
     public ObservableCollection<LossStatRow> StatsLossRows { get; } = [];
@@ -164,6 +161,30 @@ public sealed partial class MainViewModel : ObservableObject
         new("Day", UiLoc.Current["bucket.Day"]),
         new("Week", UiLoc.Current["bucket.Week"]),
     ];
+    public IReadOnlyList<IconChoice> IconStyles =>
+    [
+        Style("Number"), Style("Dot"), Style("Bars"), Style("Ring"), Style("Loss"), Style("Split")
+    ];
+
+    public IReadOnlyList<IdLabel> IconMetrics =>
+    [
+        new("Ping", UiLoc.Current["metric.ping"]),
+        new("Loss", UiLoc.Current["metric.loss"])
+    ];
+
+    public string IconMetric
+    {
+        get => string.Equals(Settings.Tray.IconMetric, "Loss", StringComparison.OrdinalIgnoreCase) ? "Loss" : "Ping";
+        set
+        {
+            var next = string.Equals(value, "Loss", StringComparison.OrdinalIgnoreCase) ? "Loss" : "Ping";
+            if (Settings.Tray.IconMetric == next) return;
+            Settings.Tray.IconMetric = next;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
     public IReadOnlyList<string> StripMetrics { get; } = ["Ping", "Loss", "Down"];
     public IReadOnlyList<string> Schedules { get; } = ["Off", "Every 6", "Every 12", "04:00"];
     public UiLoc Ui => UiLoc.Current;
@@ -182,6 +203,8 @@ public sealed partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(BucketOptions));
             OnPropertyChanged(nameof(PingUnit));
             OnPropertyChanged(nameof(CategoryOptions));
+            OnPropertyChanged(nameof(IconStyles));
+            OnPropertyChanged(nameof(IconMetrics));
             Apply(_hub.Current);
             ApplyRoute(_hub.CurrentRoute);
             ModeButtonText = Section == "Settings" ? UiLoc.Current["nav.monitor"] : UiLoc.Current["nav.settings"];
@@ -241,11 +264,26 @@ public sealed partial class MainViewModel : ObservableObject
         LossAll = mode == "all";
     }
 
+    public void ShowSettings()
+    {
+        Section = "Settings";
+        ModeButtonText = UiLoc.Current["nav.monitor"];
+    }
+
     [RelayCommand]
     private void ToggleSettings()
     {
         Section = Section == "Settings" ? "Monitor" : "Settings";
         ModeButtonText = Section == "Settings" ? UiLoc.Current["nav.monitor"] : UiLoc.Current["nav.settings"];
+    }
+
+    [RelayCommand]
+    private void SetIconStyle(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        Settings.Tray.IconStyle = id;
+        _settings.Save();
+        OnPropertyChanged(nameof(IconStyles));
     }
 
     [RelayCommand]
@@ -286,6 +324,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (row is null)
             {
                 row = new TargetRow { Id = t.TargetId, Swatch = Freeze(Palette[Rows.Count % Palette.Length]) };
+                row.OnChartFilter = RefreshVisibleCharts;
                 Rows.Add(row);
             }
             row.Name = t.DisplayName;
@@ -344,6 +383,38 @@ public sealed partial class MainViewModel : ObservableObject
         LoadOutages();
     }
 
+    private bool _muteChartFilter;
+
+    private void RefreshVisibleCharts()
+    {
+        if (_muteChartFilter) return;
+        if (Period == "Minute") ShowLiveCharts();
+        else LoadHistoryCharts();
+    }
+
+    [RelayCommand]
+    private void FocusChart(TargetRow? row)
+    {
+        if (row is null) return;
+        FocusedChartId = FocusedChartId == row.Id ? null : row.Id;
+        foreach (var r in Rows)
+            r.IsFocused = FocusedChartId == r.Id;
+        RefreshVisibleCharts();
+    }
+
+    [RelayCommand]
+    private void ShowAllCharts()
+    {
+        _muteChartFilter = true;
+        foreach (var r in Rows)
+            r.ShowOnChart = true;
+        _muteChartFilter = false;
+        FocusedChartId = null;
+        foreach (var r in Rows)
+            r.IsFocused = false;
+        RefreshVisibleCharts();
+    }
+
     private void ShowLiveCharts()
     {
         ChartWindowSeconds = 120;
@@ -358,7 +429,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private List<ChartSeries> AllLive(Func<TargetRow, IReadOnlyList<double>> pick)
-        => Rows.Select(r => Series(r.Name, r.Swatch, SeriesAlign.Right(pick(r), 40), ReferenceEquals(r, SelectedRow) ? 2.8 : 1.5)).ToList();
+        => Rows.Where(r => r.ShowOnChart).Select(r => LineFor(r, pick(r))).ToList();
 
     private void LoadHistoryCharts()
     {
@@ -373,24 +444,22 @@ public sealed partial class MainViewModel : ObservableObject
             LossSeries = [];
             return;
         }
-        var row = SelectedRow;
         var times = Buckets(fromMs, toMs, bucketMs);
         try
         {
-            var profileId = _profiles.Active.Id.ToString();
+            var profileId = StoreId();
             var allLoss = _repo.QueryLossByTarget(fromMs, toMs, bucketMs, profileId);
             var lossBy = allLoss.GroupBy(p => p.TargetId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.GroupBy(p => p.Ts).ToDictionary(x => x.Key, x => x.Last().Loss), StringComparer.OrdinalIgnoreCase);
             var pingList = new List<ChartSeries>();
             var lossList = new List<ChartSeries>();
-            foreach (var r in Rows)
+            foreach (var r in Rows.Where(r => r.ShowOnChart))
             {
                 var pts = _repo.QueryTargetSeries(fromMs, toMs, bucketMs, profileId, r.Id.ToString());
                 var pingMap = pts.Where(p => p.AvgPing is not null).GroupBy(p => p.Ts).ToDictionary(g => g.Key, g => g.Last().AvgPing!.Value);
                 lossBy.TryGetValue(r.Id.ToString(), out var lossMap);
-                var thick = ReferenceEquals(r, row) ? 2.8 : 1.5;
-                pingList.Add(Series(r.Name, r.Swatch, PathDiagnosis.Align(times, pingMap), thick));
-                lossList.Add(Series(r.Name, r.Swatch, PathDiagnosis.Align(times, lossMap ?? new Dictionary<long, double>()), thick));
+                pingList.Add(LineFor(r, PathDiagnosis.Align(times, pingMap)));
+                lossList.Add(LineFor(r, PathDiagnosis.Align(times, lossMap ?? new Dictionary<long, double>())));
             }
             PingSeries = pingList;
             LossSeries = lossList;
@@ -452,6 +521,20 @@ public sealed partial class MainViewModel : ObservableObject
         Thickness = thickness,
         Values = values
     };
+
+    private ChartSeries LineFor(TargetRow row, IReadOnlyList<double> values)
+    {
+        var focused = FocusedChartId is Guid id && id == row.Id;
+        var dim = FocusedChartId is not null && !focused;
+        return new ChartSeries
+        {
+            Name = row.Name,
+            Stroke = row.Swatch,
+            Thickness = focused ? 2.8 : 1.4,
+            Opacity = dim ? 0.22 : 1,
+            Values = values
+        };
+    }
 
     private static ChartSeries Series(string name, Brush stroke, IReadOnlyList<double> values, double thickness) => new()
     {
@@ -619,6 +702,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void SaveSettings()
     {
+        PersistTargets();
         AutostartService.Apply(Settings.StartWithWindows);
         _settings.Save();
         _hub.EmitEvent(EventLevel.Info, EventCategory.Settings, "Settings saved");
@@ -754,44 +838,39 @@ public sealed partial class MainViewModel : ObservableObject
         File.WriteAllLines(dlg.FileName, lines);
     }
 
-    [RelayCommand]
-    private void RefreshProfiles()
+    private void LoadTargets()
     {
-        Profiles.Clear();
-        foreach (var p in _profiles.All) Profiles.Add(p);
-        SelectedProfile = Profiles.FirstOrDefault(p => p.IsActive);
+        Settings.Monitor ??= new Profile();
+        Settings.Monitor.Targets ??= [];
+        EditableTargets.Clear();
+        foreach (var t in Settings.Monitor.Targets)
+            EditableTargets.Add(t);
     }
 
-    [RelayCommand]
-    private void ActivateProfile()
+    private void PersistTargets()
     {
-        if (SelectedProfile is null) return;
-        _profiles.SetActive(SelectedProfile.Id);
-        _hub.EmitEvent(EventLevel.Info, EventCategory.Profile, "Active profile: " + SelectedProfile.Name);
-        RefreshProfiles();
+        Settings.Monitor.Targets = EditableTargets.ToList();
+        _settings.Save();
     }
 
-    [RelayCommand]
-    private void SaveProfile()
-    {
-        if (SelectedProfile is null) return;
-        _profiles.Upsert(SelectedProfile);
-    }
+    private string StoreId() => Settings.Monitor.Id.ToString();
+
+    private IconChoice Style(string id) => new(id, UiLoc.Current["icon." + id],
+        string.Equals(Settings.Tray.IconStyle, id, StringComparison.OrdinalIgnoreCase));
 
     [RelayCommand]
     private void AddTarget()
     {
-        if (SelectedProfile is null || string.IsNullOrWhiteSpace(NewTargetHost)) return;
-        SelectedProfile.Targets.Add(new Target
+        if (string.IsNullOrWhiteSpace(NewTargetHost)) return;
+        EditableTargets.Add(new Target
         {
-            DisplayName = string.IsNullOrWhiteSpace(NewTargetName) ? NewTargetHost : NewTargetName,
+            DisplayName = string.IsNullOrWhiteSpace(NewTargetName) ? NewTargetHost.Trim() : NewTargetName.Trim(),
             Host = NewTargetHost.Trim(),
             Role = TargetRole.Custom
         });
-        _profiles.Upsert(SelectedProfile);
         NewTargetHost = "";
         NewTargetName = "";
-        RefreshProfiles();
+        PersistTargets();
     }
 
     public bool PreferIpv6
@@ -829,23 +908,20 @@ public sealed partial class MainViewModel : ObservableObject
     private void RemoveTarget(TargetRow? row)
     {
         if (row is null) return;
-        var profile = _profiles.Active;
-        var t = profile.Targets.FirstOrDefault(x => x.Id == row.Id);
+        var t = EditableTargets.FirstOrDefault(x => x.Id == row.Id);
         if (t is null) return;
-        profile.Targets.Remove(t);
-        _profiles.Upsert(profile);
-        RefreshProfiles();
+        EditableTargets.Remove(t);
+        PersistTargets();
     }
 
     private void AddHosts(string? raw, bool clear)
     {
         if (string.IsNullOrWhiteSpace(raw)) return;
-        var profile = _profiles.Active;
         var changed = false;
         foreach (var token in raw.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var part = IpChoice.NormalizeHost(token);
-            var existing = profile.Targets.FirstOrDefault(t => string.Equals(t.Host, part, StringComparison.OrdinalIgnoreCase));
+            var existing = EditableTargets.FirstOrDefault(t => string.Equals(t.Host, part, StringComparison.OrdinalIgnoreCase));
             if (existing is not null)
             {
                 if (!existing.Enabled)
@@ -855,8 +931,8 @@ public sealed partial class MainViewModel : ObservableObject
                 }
                 continue;
             }
-            if (profile.Targets.Count(t => t.Enabled) >= 32) break;
-            profile.Targets.Add(new Target
+            if (EditableTargets.Count(t => t.Enabled) >= 32) break;
+            EditableTargets.Add(new Target
             {
                 DisplayName = FriendlyName(part),
                 Host = part,
@@ -868,10 +944,7 @@ public sealed partial class MainViewModel : ObservableObject
             changed = true;
         }
         if (changed)
-        {
-            _profiles.Upsert(profile);
-            RefreshProfiles();
-        }
+            PersistTargets();
         if (clear) QuickHost = "";
     }
 
@@ -888,43 +961,19 @@ public sealed partial class MainViewModel : ObservableObject
     };
 
     [RelayCommand]
-    private void DeleteProfile()
-    {
-        if (SelectedProfile is null) return;
-        _profiles.Delete(SelectedProfile.Id);
-        RefreshProfiles();
-    }
-
-    [RelayCommand]
-    private void DuplicateProfile()
-    {
-        if (SelectedProfile is null) return;
-        var copy = System.Text.Json.JsonSerializer.Deserialize<Profile>(
-            System.Text.Json.JsonSerializer.Serialize(SelectedProfile, Netpulse.Core.Json.JsonDefaults.Options),
-            Netpulse.Core.Json.JsonDefaults.Options)!;
-        copy.Id = Guid.NewGuid();
-        copy.Name += " copy";
-        copy.IsActive = false;
-        foreach (var t in copy.Targets) t.Id = Guid.NewGuid();
-        _profiles.Upsert(copy);
-        RefreshProfiles();
-    }
-
-    [RelayCommand]
     private void DetectGateway()
     {
         var a = GatewayDetector.PickDefault(Settings.SelectedAdapterId, Settings.AdapterUserChosen);
-        if (a is null || SelectedProfile is null) return;
-        var gw = SelectedProfile.Targets.FirstOrDefault(t => t.Role == TargetRole.Gateway);
+        if (a is null) return;
+        var gw = EditableTargets.FirstOrDefault(t => t.Role == TargetRole.Gateway);
         if (gw is null)
         {
             gw = new Target { DisplayName = "Gateway", Role = TargetRole.Gateway };
-            SelectedProfile.Targets.Add(gw);
+            EditableTargets.Add(gw);
         }
         gw.Host = a.Gateway;
         gw.Enabled = !string.IsNullOrEmpty(a.Gateway);
-        _profiles.Upsert(SelectedProfile);
-        RefreshProfiles();
+        PersistTargets();
     }
 
     [RelayCommand]
@@ -998,7 +1047,7 @@ public sealed partial class MainViewModel : ObservableObject
         IReadOnlyList<TargetLossPoint> points = [];
         try
         {
-            points = _repo.QueryLossByTarget(fromMs, toMs, bucketMs, _profiles.Active.Id.ToString());
+            points = _repo.QueryLossByTarget(fromMs, toMs, bucketMs, StoreId());
         }
         catch
         {
@@ -1021,7 +1070,7 @@ public sealed partial class MainViewModel : ObservableObject
                 g => g.Key,
                 g => g.GroupBy(p => p.Ts).ToDictionary(x => x.Key, x => x.Last().Loss),
                 StringComparer.OrdinalIgnoreCase);
-        var targets = _profiles.Active.Targets.Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Host)).ToList();
+        var targets = EditableTargets.Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Host)).ToList();
         var known = targets.Select(t => t.Id.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var id in byTarget.Keys)
         {
@@ -1113,6 +1162,7 @@ public sealed record IdLabel(string Id, string Label)
 {
     public override string ToString() => Label;
 }
+public sealed record IconChoice(string Id, string Label, bool Selected);
 public sealed record PingStatRow(string Time, string Avg, string Min, string Max);
 public sealed record LossStatRow(string Time, string Loss);
 public sealed record LossSummaryRow(string Name, string Avg, string Max, string Last);
@@ -1132,6 +1182,10 @@ public sealed partial class TargetRow : ObservableObject
     public IReadOnlyList<double> PingSpark { get; set; } = [];
     public IReadOnlyList<double> LossSpark { get; set; } = [];
     public Brush Swatch { get; init; } = Brushes.White;
+    public Action? OnChartFilter;
+    [ObservableProperty] private bool _showOnChart = true;
+    [ObservableProperty] private bool _isFocused;
+    partial void OnShowOnChartChanged(bool value) => OnChartFilter?.Invoke();
     public double? Min { get; set; }
     public double? Avg { get; set; }
     public double? Max { get; set; }

@@ -2,41 +2,144 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctrl="clr-namespace:Netpulse.App.Controls"
+        xmlns:loc="clr-namespace:Netpulse.App.Loc"
+        xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
         Title="Rttstat"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         ShowInTaskbar="False"
         ShowActivated="False"
+        Topmost="True"
         Visibility="Collapsed"
         ResizeMode="NoResize"
-        Width="360"
-        Height="430"
-        Deactivated="OnDeactivated">
-  <Border Background="#F21B1D21" CornerRadius="12" BorderBrush="#3A3E46" BorderThickness="1" Padding="16">
-    <DockPanel>
-      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-        <Button x:Name="OpenBtn" Content="Open" Click="OpenClick" Margin="0,0,8,0"/>
-        <Button x:Name="PauseBtn" Content="Pause" Click="PauseClick" Margin="0,0,8,0"/>
-        <Button x:Name="SpeedBtn" Content="Speed" Click="SpeedClick" Margin="0,0,8,0"/>
-        <Button x:Name="ExitBtn" Content="Exit" Click="ExitClick"/>
-      </StackPanel>
-      <StackPanel>
-        <DockPanel Margin="0,0,0,8">
-          <ComboBox x:Name="ProfileBox" Width="160" DockPanel.Dock="Right" SelectionChanged="ProfileChanged"
-                    DisplayMemberPath="Name"/>
-          <TextBlock x:Name="TitleBlock" FontSize="18" FontWeight="SemiBold"/>
+        Width="560"
+        Height="440"
+        MinWidth="320"
+        MinHeight="280"
+        MaxWidth="780"
+        MaxHeight="680"
+        Deactivated="OnDeactivated"
+        SizeChanged="OnSizeChanged">
+  <Grid>
+    <Border Background="#F2181A1E" CornerRadius="14" BorderBrush="#3A3E46" BorderThickness="1" Padding="14,14,18,14">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition x:Name="TargetCol" Width="0"/>
+        </Grid.ColumnDefinitions>
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <Button x:Name="GearBtn" DockPanel.Dock="Right" Content="⚙" Padding="8,2" Click="SettingsClick"
+                    ToolTip="{loc:L Key=set.menu.gear}" VerticalAlignment="Top"/>
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="Dot" Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,8,0" Fill="#3DDC97"/>
+                <TextBlock x:Name="StatusBlock" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+              </StackPanel>
+              <TextBlock x:Name="AdapterBlock" Foreground="#9AA0A6" FontSize="12" Margin="18,2,0,0" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+          </DockPanel>
+          <WrapPanel x:Name="ButtonRow" DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <Button x:Name="OpenBtn" Content="Open" Click="OpenClick" Margin="0,0,8,6" Padding="10,5"/>
+            <Button x:Name="PauseBtn" Content="Pause" Click="PauseClick" Margin="0,0,8,6" Padding="10,5"/>
+            <Button x:Name="SpeedBtn" Content="Speed" Click="SpeedClick" Margin="0,0,8,6" Padding="10,5"/>
+            <Button x:Name="ExitBtn" Content="Exit" Click="ExitClick" Margin="0,0,0,6" Padding="10,5"/>
+          </WrapPanel>
+          <TextBlock x:Name="OutageBlock" DockPanel.Dock="Bottom" Foreground="#B8BDC4" Margin="0,8,0,0" TextWrapping="Wrap"/>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+              <WrapPanel x:Name="Metrics">
+                <Border x:Name="PingTile" Background="#24262B" CornerRadius="8" Padding="10,6" Margin="0,0,8,8" MinWidth="86">
+                  <StackPanel>
+                    <TextBlock Text="{loc:L Key=ping}" FontSize="11" Foreground="#9AA0A6"/>
+                    <TextBlock x:Name="PingBlock" FontSize="16" FontWeight="SemiBold"/>
+                  </StackPanel>
+                </Border>
+                <Border x:Name="LossTile" Background="#24262B" CornerRadius="8" Padding="10,6" Margin="0,0,8,8" MinWidth="96">
+                  <StackPanel>
+                    <TextBlock Text="{loc:L Key=loss}" FontSize="11" Foreground="#9AA0A6"/>
+                    <TextBlock x:Name="LossBlock" FontSize="16" FontWeight="SemiBold"/>
+                  </StackPanel>
+                </Border>
+                <Border x:Name="DownTile" Background="#24262B" CornerRadius="8" Padding="10,6" Margin="0,0,8,8" MinWidth="96">
+                  <StackPanel>
+                    <TextBlock Text="{loc:L Key=dn}" FontSize="11" Foreground="#9AA0A6"/>
+                    <TextBlock x:Name="DownBlock" FontSize="16" FontWeight="SemiBold"/>
+                  </StackPanel>
+                </Border>
+                <Border x:Name="UpTile" Background="#24262B" CornerRadius="8" Padding="10,6" Margin="0,0,8,8" MinWidth="96">
+                  <StackPanel>
+                    <TextBlock Text="{loc:L Key=up}" FontSize="11" Foreground="#9AA0A6"/>
+                    <TextBlock x:Name="UpBlock" FontSize="16" FontWeight="SemiBold"/>
+                  </StackPanel>
+                </Border>
+                <Border x:Name="JitterTile" Background="#24262B" CornerRadius="8" Padding="10,6" Margin="0,0,8,8" MinWidth="80">
+                  <StackPanel>
+                    <TextBlock Text="{loc:L Key=jitter}" FontSize="11" Foreground="#9AA0A6"/>
+                    <TextBlock x:Name="JitterBlock" FontSize="16" FontWeight="SemiBold"/>
+                  </StackPanel>
+                </Border>
+                <Border x:Name="SpeedTile" Background="#24262B" CornerRadius="8" Padding="10,6" Margin="0,0,8,8" MinWidth="120">
+                  <StackPanel>
+                    <TextBlock Text="{loc:L Key=flyout.speed}" FontSize="11" Foreground="#9AA0A6"/>
+                    <TextBlock x:Name="SpeedBlock" FontSize="16" FontWeight="SemiBold"/>
+                  </StackPanel>
+                </Border>
+              </WrapPanel>
+              <ctrl:Sparkline x:Name="Chart" Height="132" Margin="0,4,0,0" Stroke="#3DDC97" WindowSeconds="120"/>
+            </StackPanel>
+          </ScrollViewer>
         </DockPanel>
-        <TextBlock x:Name="StatusBlock" Margin="0,0,0,10"/>
-        <UniformGrid Columns="2" Margin="0,0,0,10">
-          <TextBlock x:Name="PingBlock"/>
-          <TextBlock x:Name="LossBlock"/>
-          <TextBlock x:Name="DownBlock"/>
-          <TextBlock x:Name="UpBlock"/>
-        </UniformGrid>
-        <ctrl:Sparkline x:Name="Chart" Height="90" Stroke="#3DDC97"/>
-        <TextBlock x:Name="OutageBlock" Margin="0,10,0,0" TextWrapping="Wrap"/>
-      </StackPanel>
-    </DockPanel>
-  </Border>
+        <Border x:Name="TargetPane" Grid.Column="1" Margin="12,0,0,0" Visibility="Collapsed"
+                BorderBrush="#2E3138" BorderThickness="1,0,0,0" Padding="12,0,0,0">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="{loc:L Key=flyout.targets}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl x:Name="TargetList">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="#24262B" CornerRadius="8" Padding="8,6" Margin="0,0,0,6">
+                      <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Margin="8,0,0,0">
+                          <TextBlock Text="{Binding Ping}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                          <TextBlock Text="{Binding Loss}" Foreground="#9AA0A6" FontSize="11" HorizontalAlignment="Right"/>
+                        </StackPanel>
+                        <StackPanel>
+                          <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{Binding Swatch}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                          </StackPanel>
+                          <TextBlock Text="{Binding Host}" Foreground="#9AA0A6" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                      </DockPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </Border>
+    <primitives:Thumb x:Name="WidthGrip" Width="12" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                      Cursor="SizeWE" DragDelta="OnWidthDrag" DragCompleted="OnResizeDone" Margin="0,16,0,22">
+      <primitives:Thumb.Template>
+        <ControlTemplate TargetType="primitives:Thumb">
+          <Border Background="Transparent">
+            <Border Width="3" HorizontalAlignment="Center" Background="#4A5060" CornerRadius="2" Margin="0,36"/>
+          </Border>
+        </ControlTemplate>
+      </primitives:Thumb.Template>
+    </primitives:Thumb>
+    <primitives:Thumb Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                      Cursor="SizeNWSE" DragDelta="OnResizeDrag" DragCompleted="OnResizeDone" Margin="0,0,3,3">
+      <primitives:Thumb.Template>
+        <ControlTemplate TargetType="primitives:Thumb">
+          <Path Data="M2,14 L14,2 M6,14 L14,6 M10,14 L14,10" Stroke="#9AA0A6" StrokeThickness="1.3"
+                StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+        </ControlTemplate>
+      </primitives:Thumb.Template>
+    </primitives:Thumb>
+  </Grid>
 </Window>

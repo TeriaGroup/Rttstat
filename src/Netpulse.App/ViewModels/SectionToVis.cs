@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Media;
 
 namespace Netpulse.App.ViewModels;
 
@@ -42,6 +43,18 @@ public sealed class BoolToVis : IValueConverter
         if (_invert) on = !on;
         return on ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
+public sealed class FocusBrush : IValueConverter
+{
+    public static readonly FocusBrush Instance = new();
+
+    public object Convert(object? value, Type t, object? p, CultureInfo c)
+        => value is true
+            ? new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x97))
+            : new SolidColorBrush(Color.FromRgb(0x2E, 0x31, 0x38));
 
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
 }

@@ -10,17 +10,6 @@ public interface ISettingsProvider
     event Action? Changed;
 }
 
-public interface IProfileProvider
-{
-    IReadOnlyList<Profile> All { get; }
-    Profile Active { get; }
-    void SetActive(Guid id);
-    void Upsert(Profile profile);
-    void Delete(Guid id);
-    void Save();
-    event Action? Changed;
-}
-
 public interface INotificationSink
 {
     void Show(string title, string body, EventCategory category);

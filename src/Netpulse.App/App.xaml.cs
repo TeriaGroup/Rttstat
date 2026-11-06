@@ -65,7 +65,6 @@ public partial class App : System.Windows.Application
             {
                 s.AddSingleton<IAppPaths>(paths);
                 s.AddSingleton<ISettingsProvider, SettingsService>();
-                s.AddSingleton<IProfileProvider, ProfileService>();
                 s.AddSingleton<NetpulseDb>();
                 s.AddSingleton<SampleRepository>();
                 s.AddSingleton<MonitorHub>();
@@ -79,7 +78,6 @@ public partial class App : System.Windows.Application
                         http,
                         sp.GetRequiredService<MonitorHub>(),
                         sp.GetRequiredService<ISettingsProvider>(),
-                        sp.GetRequiredService<IProfileProvider>(),
                         sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SpeedtestService>>());
                 });
                 s.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SpeedtestService>());
@@ -96,14 +94,13 @@ public partial class App : System.Windows.Application
 
         var hub = _host.Services.GetRequiredService<MonitorHub>();
         var settings = _host.Services.GetRequiredService<ISettingsProvider>();
-        var profiles = _host.Services.GetRequiredService<IProfileProvider>();
         var speed = _host.Services.GetRequiredService<SpeedtestService>();
         var notify = _host.Services.GetRequiredService<NotificationSink>();
 
         I18n.Current.SetLanguage(settings.Current.Language);
         AutostartService.Apply(settings.Current.StartWithWindows);
 
-        _tray = new TrayController(hub, profiles, settings, speed, ShowMain, ExitApp);
+        _tray = new TrayController(hub, settings, speed, ShowMain, OpenSettings, ExitApp);
         notify.Icon = _tray.Icon;
 
         _instance.ShowRequested += () => Dispatcher.BeginInvoke(ShowMain);
@@ -132,6 +129,13 @@ public partial class App : System.Windows.Application
                         || a.Equals("/tray", StringComparison.OrdinalIgnoreCase)
                         || a.Equals("--minimized", StringComparison.OrdinalIgnoreCase)
                         || a.Equals("/minimized", StringComparison.OrdinalIgnoreCase));
+
+    private void OpenSettings()
+    {
+        ShowMain();
+        if (_main?.DataContext is MainViewModel vm)
+            vm.ShowSettings();
+    }
 
     private void ShowMain()
     {

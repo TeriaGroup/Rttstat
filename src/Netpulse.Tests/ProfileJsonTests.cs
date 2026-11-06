@@ -18,4 +18,25 @@ public class ProfileJsonTests
         Assert.Equal(file.Profiles[0].Name, back.Profiles[0].Name);
         Assert.Equal(file.Profiles[0].Targets.Count, back.Profiles[0].Targets.Count);
     }
+
+    [Fact]
+    public void ImportKeepsActiveProfile()
+    {
+        var home = DefaultProfiles.Make("Home", "", true);
+        var work = DefaultProfiles.Make("Work", "", false);
+        work.Targets.Clear();
+        var file = new ProfileFile { Profiles = [work, home] };
+
+        var got = ProfileMigration.Import(file);
+
+        Assert.Equal(home.Id, got.Id);
+        Assert.Equal(home.Targets.Count, got.Targets.Count);
+    }
+
+    [Fact]
+    public void ImportSeedsWhenMissing()
+    {
+        var got = ProfileMigration.Import(null);
+        Assert.Contains(got.Targets, t => t.Host == "1.1.1.1");
+    }
 }

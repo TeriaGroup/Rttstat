@@ -3,6 +3,7 @@ namespace Netpulse.Core.Models;
 public sealed class AppSettings
 {
     public int SchemaVersion { get; set; } = 1;
+    public Profile Monitor { get; set; } = new();
     public bool FirstRun { get; set; } = true;
     public bool OpenWindowOnStart { get; set; } = true;
     public bool StartWithWindows { get; set; }
@@ -38,11 +39,21 @@ public sealed class TraySettings
     public bool ShowOutage { get; set; } = true;
     public bool Colorize { get; set; } = true;
     public string DynamicIconMode { get; set; } = "PingAndStatus";
+    public string IconStyle { get; set; } = "Number";
+    public string IconMetric { get; set; } = "Ping";
     public bool StripEnabled { get; set; } = true;
     public string StripMetric { get; set; } = "Ping";
     public int StripSeconds { get; set; } = 60;
     public bool FlyoutEnabled { get; set; } = true;
     public bool FlyoutOpenOnLeftClick { get; set; } = true;
+    public double FlyoutWidth { get; set; } = 560;
+    public double FlyoutHeight { get; set; } = 440;
+    public bool FlyoutShowChart { get; set; } = true;
+    public bool FlyoutShowTargets { get; set; } = true;
+    public bool FlyoutShowJitter { get; set; } = true;
+    public bool FlyoutShowAdapter { get; set; }
+    public bool FlyoutShowSpeed { get; set; } = true;
+    public bool FlyoutShowButtons { get; set; } = true;
     public bool HudEnabled { get; set; } = true;
     public bool HideHudInFullscreen { get; set; } = true;
 }

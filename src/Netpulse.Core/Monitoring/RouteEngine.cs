@@ -10,7 +10,6 @@ namespace Netpulse.Core.Monitoring;
 public sealed class RouteEngine : BackgroundService
 {
     private readonly MonitorHub _hub;
-    private readonly IProfileProvider _profiles;
     private readonly ISettingsProvider _settings;
     private readonly ILogger<RouteEngine> _log;
     private readonly Dictionary<int, HopAccumulator> _acc = [];
@@ -19,10 +18,9 @@ public sealed class RouteEngine : BackgroundService
     private Guid _targetId;
     private readonly byte[] _payload = new byte[32];
 
-    public RouteEngine(MonitorHub hub, IProfileProvider profiles, ISettingsProvider settings, ILogger<RouteEngine> log)
+    public RouteEngine(MonitorHub hub, ISettingsProvider settings, ILogger<RouteEngine> log)
     {
         _hub = hub;
-        _profiles = profiles;
         _settings = settings;
         _log = log;
     }
@@ -52,7 +50,8 @@ public sealed class RouteEngine : BackgroundService
 
     private async Task RoundAsync(CancellationToken ct)
     {
-        var profile = _profiles.Active;
+        var profile = _settings.Current.Monitor;
+        profile.Targets ??= [];
         var wanted = _hub.TraceTarget;
         if (wanted is null) return;
         var target = profile.Targets.FirstOrDefault(t => t.Id == wanted && t.Enabled && !string.IsNullOrWhiteSpace(t.Host));

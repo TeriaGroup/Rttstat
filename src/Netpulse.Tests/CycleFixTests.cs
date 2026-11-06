@@ -14,10 +14,10 @@ public class CycleFixTests
         for (var i = 0; i < 7; i++)
             w.Add(now - (8 - i) * 1000, true, 20);
         w.Add(now, false, null);
-        var spark = w.Spark(now, TimeSpan.FromMinutes(1), 40, false);
-        Assert.NotEmpty(spark);
-        Assert.Equal(12.5, spark[^1], 1);
-        Assert.DoesNotContain(spark, v => v > 20);
+        var spark = w.Spark(now + 1000, TimeSpan.FromSeconds(60), 60, false);
+        Assert.Equal(60, spark.Count);
+        Assert.Equal(100, spark[^1]);
+        Assert.Equal(0, spark[^3]);
         await Task.CompletedTask;
     }
 
